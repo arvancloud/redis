@@ -37,53 +37,6 @@ type Record struct {
 	Expire   uint32 `json:"expire,omitempty"`
 }
 
-func (redis *Redis) Answer(qname string, qtype string, zone string) ([]dns.RR, []dns.RR) {
-	fmt.Println("looking for ", qname)
-	key := redis.findKey(qname, zone)
-	if key == "" { // empty, no results
-		return nil, nil
-	}
-
-	answers := make([]dns.RR, 0, 10)
-	extras := make([]dns.RR, 0, 10)
-
-	records := redis.get(key, qtype)
-	if len(records) == 0 {
-		cnameRecords := redis.get(key, "CNAME")
-		for _, cnameRecord := range cnameRecords {
-			if dns.IsSubDomain(zone, cnameRecord.Host) {
-				records = append(records,redis.get(cnameRecord.Host, qtype)...)
-			}
-		}
-	}
-
-	if len(records) == 0 {
-		return nil, nil
-	}
-
-	switch qtype {
-	case "A":
-		answers, extras = redis.A(qname, zone, records)
-	case "AAAA":
-		answers, extras = redis.AAAA(qname, zone, records)
-	case "CNAME":
-		answers, extras = redis.CNAME(qname, zone, records)
-	case "TXT":
-		answers, extras = redis.TXT(qname, zone, records)
-	case "NS":
-		answers, extras = redis.NS(qname, zone, records)
-	case "MX":
-		answers, extras = redis.MX(qname, zone, records)
-	case "SRV":
-		answers, extras = redis.SRV(qname, zone, records)
-	case "SOA":
-		answers, extras = redis.SOA(qname, zone, records)
-	default:
-
-	}
-	return answers, extras
-}
-
 func (redis *Redis) A(name string, zone string, records []Record) (answers, extras []dns.RR) {
 	for _, record := range records {
 		if record.Ip4 == nil {
@@ -182,7 +135,9 @@ func (redis *Redis) SRV(name string, zone string, records []Record) (answers, ex
 		r.Target = record.Host
 		r.Weight = record.Weight
 		r.Port = record.Port
+		r.Priority = record.Priority
 		answers = append(answers, r)
+		extras = append(extras, redis.hosts(record.Host, zone)...)
 	}
 	return
 }
@@ -192,8 +147,8 @@ func (redis *Redis) SOA(name string, zone string, records []Record) (answers, ex
 	if records == nil {
 		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeSOA,
 			Class: dns.ClassINET, Ttl: redis.Ttl}
-		r.Ns = "ns1" + name
-		r.Mbox = "hostmaster" + name
+		r.Ns = "ns1." + name
+		r.Mbox = "hostmaster." + name
 		r.Refresh = 86400
 		r.Retry = 7200
 		r.Expire = 3600
@@ -253,28 +208,20 @@ func (redis *Redis) minTtl(record *Record) uint32 {
 
 
 func (redis *Redis) findKey(query string, zone string) string {
-	fmt.Println("looking for exact match for ", query)
 	if redis.keyExists(query) {
-		fmt.Println("exact match found")
 		return query
 	}
-	fmt.Println("exact match not found")
 	closestEncloser, sourceOfSynthesis := splitQuery(query)
 	for strings.Contains(closestEncloser, zone) {
-		fmt.Println("ce: ", closestEncloser, "ss: ", sourceOfSynthesis)
-		ceExists := redis.keyMatches(sourceOfSynthesis)
+		ceExists := redis.keyMatches(sourceOfSynthesis) || redis.keyExists(closestEncloser)
 		ssExists := redis.keyExists(sourceOfSynthesis)
 		if ceExists {
-			fmt.Println("ce exists")
 			if ssExists {
-				fmt.Println("ss exists")
 				return sourceOfSynthesis
 			} else {
-				fmt.Println("ss not exist")
 				return ""
 			}
 		} else {
-			fmt.Println("ce not exist")
 			closestEncloser, sourceOfSynthesis = splitQuery(closestEncloser)
 		}
 	}
@@ -339,12 +286,10 @@ func (redis *Redis) keyExists(key string) bool {
 func (redis *Redis) get(qname string, qtype string) []Record {
 	reply, err := redis.redisc.Do("HGET", qname, qtype)
 	if err != nil {
-		fmt.Printf("error in hget : %s\n", err)
 		return nil
 	}
 	value, err := redisCon.String(reply, nil)
 	if err != nil || len(value) == 0 {
-		fmt.Println("no values")
 		return nil
 	}
 	var res []Record
