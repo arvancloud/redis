@@ -35,7 +35,7 @@ func setup(c *caddy.Controller) error {
 
 func redisParse(c *caddy.Controller) (*Redis, error) {
 	redis := Redis {
-
+		keyPrefix:"",
 	}
 	var (
 		redisAddress   string
@@ -69,6 +69,11 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 						return &Redis{}, c.ArgErr()
 					}
 					redisPassword = c.Val()
+				case "prefix":
+					if !c.NextArg() {
+						return &Redis{}, c.ArgErr()
+					}
+					redis.keyPrefix = c.Val()
 				case "connect_timeout":
 					if !c.NextArg() {
 						return &Redis{}, c.ArgErr()
@@ -128,7 +133,7 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 				redisReply interface{}
 				zones []string
 			)
-			redisReply, err = redis.redisc.Do("LRANGE", "zones", 0, -1)
+			redisReply, err = redis.redisc.Do("LRANGE", redis.keyPrefix + "zones", 0, -1)
 			if err == nil {
 				zones, err = redisCon.Strings(redisReply, nil)
 				if err == nil && len(zones) > 0 {

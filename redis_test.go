@@ -177,6 +177,7 @@ func newRedisPlugin() *Redis {
 	opts = append(opts, redisCon.DialPassword("foobared"))
 	client, _ := redisCon.Dial("tcp", "localhost:6379", opts...)
 	return &Redis {
+		keyPrefix: "_dns:",
 		Zones: []string{"example.com."},
 		redisc: client,
 		Ttl: 300,
@@ -187,7 +188,7 @@ func TestAnswer(t *testing.T) {
 	r := newRedisPlugin()
 
 	for i, _ := range entries {
-		r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, "*.example.com.")
+		r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*")
 		for _, cmd := range entries[i] {
 			err := r.set(cmd)
 			if err != nil {

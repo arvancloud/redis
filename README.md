@@ -17,6 +17,7 @@ no zones could be found the block's zone will be used
 redis [ZONES...] {
     address ADDR
     password PWD
+    prefix PREFIX
     connect_timeout TIMEOUT
     read_timeout TIMEOUT
     ttl TTL
@@ -28,6 +29,7 @@ redis [ZONES...] {
 * `connect_timeout` time in ms to wait for redis server to connect
 * `read_timeout` time in ms to wait for redis server to respond
 * `ttl` default ttl for dns records, 300 if not provided
+* `prefix` add PREFIX to all redis keys
 
 ### examples
 

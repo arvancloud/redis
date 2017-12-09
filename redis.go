@@ -18,6 +18,7 @@ type Redis struct {
 	Next        plugin.Handler
 	Zones       []string
 	redisc      redisCon.Conn
+	keyPrefix   string
 	Ttl         uint32
 }
 
@@ -248,7 +249,7 @@ func (redis *Redis) keyMatches(pattern string) bool {
 		res []interface{}
 		keys []string
 	)
-	reply, err = redis.redisc.Do("SCAN",0, "match", pattern)
+	reply, err = redis.redisc.Do("SCAN",0, "match", redis.keyPrefix + pattern)
 	if err != nil {
 		// report error?
 		return false
@@ -269,7 +270,7 @@ func (redis *Redis) keyExists(key string) bool {
 		reply, err interface{}
 		res int
 	)
-	reply, err = redis.redisc.Do("EXISTS", key)
+	reply, err = redis.redisc.Do("EXISTS", redis.keyPrefix + key)
 	if err != nil {
 		return false
 	}
@@ -284,8 +285,9 @@ func (redis *Redis) keyExists(key string) bool {
 }
 
 func (redis *Redis) get(qname string, qtype string) []Record {
-	reply, err := redis.redisc.Do("HGET", qname, qtype)
+	reply, err := redis.redisc.Do("HGET", redis.keyPrefix + qname, qtype)
 	if err != nil {
+		fmt.Println("HGET", err)
 		return nil
 	}
 	value, err := redisCon.String(reply, nil)
@@ -301,6 +303,7 @@ func (redis *Redis) get(qname string, qtype string) []Record {
 }
 
 func (redis *Redis) set(params []string) error {
+	params[0] = redis.keyPrefix + params[0]
 	s := make([]interface{}, len(params))
 	for i, v := range params {
 		s[i] = v
