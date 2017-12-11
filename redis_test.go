@@ -12,47 +12,56 @@ import (
 	"github.com/miekg/dns"
 )
 
+var zones = []string {
+	"example.com.", "example.net.",
+}
+
 var entries = [][][]string {
-	// basic tests
 	{
-		{"example.com.",
-			"SOA", "[{\"ttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}]",
+		{"@",
+			"{\"SOA\":{\"ttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}}",
 		},
-		{"x.example.com.",
-			"A", "[{\"ip4\":\"1.2.3.4\"},{\"ip4\":\"5.6.7.8\"}]",
-			"AAAA", "[{\"ip6\":\"::1\"}]",
-			"TXT", "[{\"text\":\"foo\"},{\"text\":\"bar\"}]",
-			"NS", "[{\"host\":\"ns1.example.com.\"},{\"host\":\"ns2.example.com.\"}]",
-			"MX", "[{\"host\":\"mx1.example.com.\", \"priority\":10},{\"host\":\"mx2.example.com.\", \"priority\":10}]"},
-		{"y.example.com.",
-			"CNAME", "[{\"host\":\"x.example.com.\"}]",
+		{"x",
+			"{\"A\":[{\"ip\":\"1.2.3.4\"},{\"ip\":\"5.6.7.8\"}]," +
+			"\"AAAA\":[{\"ip\":\"::1\"}],\"TXT\":[{\"text\":\"foo\"},{\"text\":\"bar\"}]," +
+			"\"NS\":[{\"host\":\"ns1.example.com.\"},{\"host\":\"ns2.example.com.\"}]," +
+			"\"MX\":[{\"host\":\"mx1.example.com.\", \"preference\":10},{\"host\":\"mx2.example.com.\", \"preference\":10}]}",
 		},
-		{"ns1.example.com.",
-			"A", "[{\"ip4\":\"2.2.2.2\"}]"},
-		{"ns2.example.com.",
-			"A", "[{\"ip4\":\"3.3.3.3\"}]"},
-		{"_sip._tcp.x.example.com.",
-			"SRV", "[{\"host\":\"sip.example.com.\",\"port\":555,\"priority\":10,\"weight\":100}]",
+		{"y",
+			"{\"CNAME\":[{\"host\":\"x.example.com.\"}]}",
 		},
-		{"sip.example.com.",
-			"A", "[{\"ip4\":\"7.7.7.7\"}]",
-			"AAAA", "[{\"ip6\":\"::1\"}]",
+		{"ns1",
+			"{\"A\":[{\"ip\":\"2.2.2.2\"}]}",
+		},
+		{"ns2",
+			"{\"A\":[{\"ip\":\"3.3.3.3\"}]}",
+		},
+		{"_sip._tcp",
+			"{\"SRV\":[{\"target\":\"sip.example.com.\",\"port\":555,\"priority\":10,\"weight\":100}]}",
+		},
+		{"sip",
+			"{\"A\":[{\"ip\":\"7.7.7.7\"}]," +
+			"\"AAAA\":[{\"ip\":\"::1\"}]}",
 		},
 	},
-	// wildcard tests
 	{
-		{"example.com.",
-			"SOA", "[{\"ttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}]",
-			"NS", "[{\"host\":\"ns1.example.com.\"},{\"host\":\"ns2.example.com.\"}]"},
-		{"sub.*.example.com.",
-			"TXT", "[{\"text\":\"this is not a wildcard\"}]"},
-		{"host1.example.com.",
-			"A", "[{\"ip4\":\"5.5.5.5\"}]"},
-		{"subdel.example.com.",
-			"NS", "[{\"host\":\"ns1.subdel.example.com.\"},{\"host\":\"ns2.subdel.example.com.\"}]"},
-		{"*.example.com.",
-			"TXT", "[{\"text\":\"this is a wildcard\"}]",
-			"MX", "[{\"host\":\"host1.example.com.\",\"priority\": 10}]"},
+		{"@",
+			"{\"SOA\":{\"ttl\":100, \"mbox\":\"hostmaster.example.net.\",\"ns\":\"ns1.example.net.\",\"refresh\":44,\"retry\":55,\"expire\":66}," +
+			"\"NS\":[{\"host\":\"ns1.example.net.\"},{\"host\":\"ns2.example.net.\"}]}",
+		},
+		{"sub.*",
+			"{\"TXT\":[{\"text\":\"this is not a wildcard\"}]}",
+		},
+		{"host1",
+			"{\"A\":[{\"ip\":\"5.5.5.5\"}]}",
+		},
+		{"subdel",
+			"{\"NS\":[{\"host\":\"ns1.subdel.example.net.\"},{\"host\":\"ns2.subdel.example.net.\"}]}",
+		},
+		{"*",
+			"{\"TXT\":[{\"text\":\"this is a wildcard\"}]," +
+			"\"MX\":[{\"host\":\"host1.example.net.\",\"preference\": 10}]}",
+		},
 	},
 }
 
@@ -111,9 +120,9 @@ var testCases = [][]test.Case{
 		},
 		// SRV Test
 		{
-			Qname: "_sip._tcp.x.example.com.", Qtype: dns.TypeSRV,
+			Qname: "_sip._tcp.example.com.", Qtype: dns.TypeSRV,
 			Answer: []dns.RR{
-				test.SRV("_sip._tcp.x.example.com. 300 IN SRV 10 100 555 sip.example.com."),
+				test.SRV("_sip._tcp.example.com. 300 IN SRV 10 100 555 sip.example.com."),
 			},
 			Extra: []dns.RR{
 				test.A("sip.example.com. 300 IN A 7.7.7.7"),
@@ -136,35 +145,35 @@ var testCases = [][]test.Case{
 	// Wildcard Tests
 	{
 		{
-			Qname: "host3.example.com.", Qtype: dns.TypeMX,
+			Qname: "host3.example.net.", Qtype: dns.TypeMX,
 			Answer: []dns.RR{
-				test.MX("host3.example.com. 300 IN MX 10 host1.example.com."),
+				test.MX("host3.example.net. 300 IN MX 10 host1.example.net."),
 			},
 			Extra: []dns.RR{
-				test.A("host1.example.com. 300 IN A 5.5.5.5"),
+				test.A("host1.example.net. 300 IN A 5.5.5.5"),
 			},
 		},
 		{
-			Qname: "host3.example.com.", Qtype: dns.TypeA,
+			Qname: "host3.example.net.", Qtype: dns.TypeA,
 		},
 		{
-			Qname: "foo.bar.example.com.", Qtype: dns.TypeTXT,
+			Qname: "foo.bar.example.net.", Qtype: dns.TypeTXT,
 			Answer: []dns.RR{
-				test.TXT("foo.bar.example.com. 300 IN TXT \"this is a wildcard\""),
+				test.TXT("foo.bar.example.net. 300 IN TXT \"this is a wildcard\""),
 			},
 		},
 		{
-			Qname: "host1.example.com.", Qtype: dns.TypeMX,
+			Qname: "host1.example.net.", Qtype: dns.TypeMX,
 		},
 		{
-			Qname: "sub.*.example.com.", Qtype: dns.TypeMX,
+			Qname: "sub.*.example.net.", Qtype: dns.TypeMX,
 		},
 		{
-			Qname: "host.subdel.example.com.", Qtype: dns.TypeA,
+			Qname: "host.subdel.example.net.", Qtype: dns.TypeA,
 			Rcode: dns.RcodeNameError,
 		},
 		{
-			Qname: "ghost.*.example.com.", Qtype: dns.TypeMX,
+			Qname: "ghost.*.example.net.", Qtype: dns.TypeMX,
 			Rcode: dns.RcodeNameError,
 		},
 	},
@@ -176,21 +185,30 @@ func newRedisPlugin() *Redis {
 	opts := []redisCon.DialOption{}
 	opts = append(opts, redisCon.DialPassword("foobared"))
 	client, _ := redisCon.Dial("tcp", "localhost:6379", opts...)
+	redis := new(Redis)
+	redis.keyPrefix = ""
+	redis.keySuffix = ""
+	redis.redisc = client
+	redis.Ttl = 300
+	redis.load()
+	return redis
+	/*
 	return &Redis {
-		keyPrefix: "_dns:",
-		Zones: []string{"example.com."},
+		keyPrefix: "",
+		keySuffix:"",
 		redisc: client,
 		Ttl: 300,
-	}
+	}	redis := new(Redis)
+	*/
 }
 
 func TestAnswer(t *testing.T) {
 	r := newRedisPlugin()
 
-	for i, _ := range entries {
-		r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*")
+	for i, zone := range zones {
+		r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + zone + r.keySuffix)
 		for _, cmd := range entries[i] {
-			err := r.set(cmd)
+			err := r.save(zone, cmd[0], cmd[1])
 			if err != nil {
 				fmt.Println("error in redis", err)
 				t.Fail()

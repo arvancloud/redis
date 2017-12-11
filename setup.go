@@ -3,7 +3,6 @@ package redis
 import (
 	"time"
 	"strconv"
-	"fmt"
 
 	"github.com/mholt/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
@@ -36,6 +35,8 @@ func setup(c *caddy.Controller) error {
 func redisParse(c *caddy.Controller) (*Redis, error) {
 	redis := Redis {
 		keyPrefix:"",
+		keySuffix:"",
+		Ttl:300,
 	}
 	var (
 		redisAddress   string
@@ -43,19 +44,9 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 		connectTimeout int
 		readTimeout    int
 		err            error
-		zoneFromRedis  bool
 	)
 
 	for c.Next() {
-		redis.Zones = c.RemainingArgs()
-		if len(redis.Zones) == 0 {  // load zones from redis
-			zoneFromRedis = true
-		}
-		for i, str := range redis.Zones {
-			redis.Zones[i] = plugin.Host(str).Normalize()
-		}
-		fmt.Println(redis.Zones)
-
 		if c.NextBlock() {
 			for {
 				switch c.Val() {
@@ -74,6 +65,11 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 						return &Redis{}, c.ArgErr()
 					}
 					redis.keyPrefix = c.Val()
+				case "suffix":
+					if !c.NextArg() {
+						return &Redis{}, c.ArgErr()
+					}
+					redis.keySuffix = c.Val()
 				case "connect_timeout":
 					if !c.NextArg() {
 						return &Redis{}, c.ArgErr()
@@ -128,25 +124,7 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 			return &Redis{}, err
 		}
 
-		if zoneFromRedis {
-			var (
-				redisReply interface{}
-				zones []string
-			)
-			redisReply, err = redis.redisc.Do("LRANGE", redis.keyPrefix + "zones", 0, -1)
-			if err == nil {
-				zones, err = redisCon.Strings(redisReply, nil)
-				if err == nil && len(zones) > 0 {
-					redis.Zones = zones
-				} else {
-					redis.Zones = make([]string, len(c.ServerBlockKeys))
-					copy(redis.Zones, c.ServerBlockKeys)
-				}
-			} else {
-				redis.Zones = make([]string, len(c.ServerBlockKeys))
-				copy(redis.Zones, c.ServerBlockKeys)
-			}
-		}
+		redis.load()
 
 		return &redis, nil
 	}
