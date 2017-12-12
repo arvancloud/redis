@@ -2,7 +2,7 @@ package redis
 
 import (
 	"time"
-	"fmt"
+	// "fmt"
 
 	"github.com/coredns/coredns/plugin"
 	"github.com/miekg/dns"
@@ -19,10 +19,10 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	qname := state.Name()
 	qtype := state.Type()
 
-	fmt.Println("name : ", qname)
-	fmt.Println("type : ", qtype)
+	// fmt.Println("name : ", qname)
+	// fmt.Println("type : ", qtype)
 	zone := plugin.Zones(redis.GetZones()).Matches(qname)
-	fmt.Println("zone : ", zone)
+	// fmt.Println("zone : ", zone)
 	if zone == "" {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
@@ -35,13 +35,12 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	if len(location) == 0 { // empty, no results
 		return redis.errorResponse(state, zone, dns.RcodeNameError, nil)
 	}
-	fmt.Println("location : ", location)
+	// fmt.Println("location : ", location)
 
 	answers := make([]dns.RR, 0, 10)
 	extras := make([]dns.RR, 0, 10)
 
 	record := redis.get(location, zone)
-	fmt.Println(*record)
 
 	switch qtype {
 	case "A":

@@ -19,48 +19,55 @@ var zones = []string {
 var entries = [][][]string {
 	{
 		{"@",
-			"{\"SOA\":{\"ttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}}",
+			"{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}}",
 		},
 		{"x",
-			"{\"A\":[{\"ip\":\"1.2.3.4\"},{\"ip\":\"5.6.7.8\"}]," +
-			"\"AAAA\":[{\"ip\":\"::1\"}],\"TXT\":[{\"text\":\"foo\"},{\"text\":\"bar\"}]," +
-			"\"NS\":[{\"host\":\"ns1.example.com.\"},{\"host\":\"ns2.example.com.\"}]," +
-			"\"MX\":[{\"host\":\"mx1.example.com.\", \"preference\":10},{\"host\":\"mx2.example.com.\", \"preference\":10}]}",
+			"{\"a\":[{\"ttl\":300, \"ip\":\"1.2.3.4\"},{\"ttl\":300, \"ip\":\"5.6.7.8\"}]," +
+			"\"aaaa\":[{\"ttl\":300, \"ip\":\"::1\"}]," +
+			"\"txt\":[{\"ttl\":300, \"text\":\"foo\"},{\"ttl\":300, \"text\":\"bar\"}]," +
+			"\"ns\":[{\"ttl\":300, \"host\":\"ns1.example.com.\"},{\"ttl\":300, \"host\":\"ns2.example.com.\"}]," +
+			"\"mx\":[{\"ttl\":300, \"host\":\"mx1.example.com.\", \"preference\":10},{\"ttl\":300, \"host\":\"mx2.example.com.\", \"preference\":10}]}",
 		},
 		{"y",
-			"{\"CNAME\":[{\"host\":\"x.example.com.\"}]}",
+			"{\"cname\":[{\"ttl\":300, \"host\":\"x.example.com.\"}]}",
 		},
 		{"ns1",
-			"{\"A\":[{\"ip\":\"2.2.2.2\"}]}",
+			"{\"a\":[{\"ttl\":300, \"ip\":\"2.2.2.2\"}]}",
 		},
 		{"ns2",
-			"{\"A\":[{\"ip\":\"3.3.3.3\"}]}",
+			"{\"a\":[{\"ttl\":300, \"ip\":\"3.3.3.3\"}]}",
 		},
 		{"_sip._tcp",
-			"{\"SRV\":[{\"target\":\"sip.example.com.\",\"port\":555,\"priority\":10,\"weight\":100}]}",
+			"{\"srv\":[{\"ttl\":300, \"target\":\"sip.example.com.\",\"port\":555,\"priority\":10,\"weight\":100}]}",
 		},
 		{"sip",
-			"{\"A\":[{\"ip\":\"7.7.7.7\"}]," +
-			"\"AAAA\":[{\"ip\":\"::1\"}]}",
+			"{\"a\":[{\"ttl\":300, \"ip\":\"7.7.7.7\"}]," +
+			"\"aaaa\":[{\"ttl\":300, \"ip\":\"::1\"}]}",
 		},
 	},
 	{
 		{"@",
-			"{\"SOA\":{\"ttl\":100, \"mbox\":\"hostmaster.example.net.\",\"ns\":\"ns1.example.net.\",\"refresh\":44,\"retry\":55,\"expire\":66}," +
-			"\"NS\":[{\"host\":\"ns1.example.net.\"},{\"host\":\"ns2.example.net.\"}]}",
+			"{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.net.\",\"ns\":\"ns1.example.net.\",\"refresh\":44,\"retry\":55,\"expire\":66}," +
+			"\"ns\":[{\"ttl\":300, \"host\":\"ns1.example.net.\"},{\"ttl\":300, \"host\":\"ns2.example.net.\"}]}",
 		},
 		{"sub.*",
-			"{\"TXT\":[{\"text\":\"this is not a wildcard\"}]}",
+			"{\"txt\":[{\"ttl\":300, \"text\":\"this is not a wildcard\"}]}",
 		},
 		{"host1",
-			"{\"A\":[{\"ip\":\"5.5.5.5\"}]}",
+			"{\"a\":[{\"ttl\":300, \"ip\":\"5.5.5.5\"}]}",
 		},
 		{"subdel",
-			"{\"NS\":[{\"host\":\"ns1.subdel.example.net.\"},{\"host\":\"ns2.subdel.example.net.\"}]}",
+			"{\"ns\":[{\"ttl\":300, \"host\":\"ns1.subdel.example.net.\"},{\"ttl\":300, \"host\":\"ns2.subdel.example.net.\"}]}",
 		},
 		{"*",
-			"{\"TXT\":[{\"text\":\"this is a wildcard\"}]," +
-			"\"MX\":[{\"host\":\"host1.example.net.\",\"preference\": 10}]}",
+			"{\"txt\":[{\"ttl\":300, \"text\":\"this is a wildcard\"}]," +
+			"\"mx\":[{\"ttl\":300, \"host\":\"host1.example.net.\",\"preference\": 10}]}",
+		},
+		{"_ssh._tcp.host1",
+			"{\"srv\":[{\"ttl\":300, \"target\":\"tcp.example.com.\",\"port\":123,\"priority\":10,\"weight\":100}]}",
+		},
+		{"_ssh._tcp.host2",
+			"{\"srv\":[{\"ttl\":300, \"target\":\"tcp.example.com.\",\"port\":123,\"priority\":10,\"weight\":100}]}",
 		},
 	},
 }
@@ -138,7 +145,7 @@ var testCases = [][]test.Case{
 		{
 			Qname: "example.com.", Qtype: dns.TypeSOA,
 			Answer: []dns.RR{
-				test.SOA("example.com. 100 IN SOA ns1.example.com. hostmaster.example.com. 1460498836 44 55 66 100"),
+				test.SOA("example.com. 300 IN SOA ns1.example.com. hostmaster.example.com. 1460498836 44 55 66 100"),
 			},
 		},
 	},
@@ -175,6 +182,12 @@ var testCases = [][]test.Case{
 		{
 			Qname: "ghost.*.example.net.", Qtype: dns.TypeMX,
 			Rcode: dns.RcodeNameError,
+		},
+		{
+			Qname: "f.h.g.f.t.r.e.example.net.", Qtype: dns.TypeTXT,
+			Answer: []dns.RR{
+				test.TXT("f.h.g.f.t.r.e.example.net. 300 IN TXT \"this is a wildcard\""),
+			},
 		},
 	},
 }

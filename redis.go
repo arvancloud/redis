@@ -30,57 +30,57 @@ type Zone struct {
 }
 
 type Record struct {
-	A     []A_Record `json:"A",omitempty`
-	AAAA  []AAAA_Record `json:"AAAA",omitempty`
-	TXT   []TXT_Record `json:"TXT",omitempty`
-	CNAME []CNAME_Record `json:"CNAME",omitempty`
-	NS    []NS_Record `json:"NS",omitempty`
-	MX    []MX_Record `json:"MX",omitempty`
-	SRV   []SRV_Record `json:"SRV",omitempty`
-	SOA   SOA_Record `json:"SOA",omitempty`
+	A     []A_Record `json:"a,omitempty"`
+	AAAA  []AAAA_Record `json:"aaaa,omitempty"`
+	TXT   []TXT_Record `json:"txt,omitempty"`
+	CNAME []CNAME_Record `json:"cname,omitempty"`
+	NS    []NS_Record `json:"ns,omitempty"`
+	MX    []MX_Record `json:"mx,omitempty"`
+	SRV   []SRV_Record `json:"srv,omitempty"`
+	SOA   SOA_Record `json:"soa,omitempty"`
 }
 
 type A_Record struct {
-	Ttl uint32 `json"ttl",omitempty`
+	Ttl uint32 `json:"ttl,omitempty"`
 	Ip  net.IP `json:"ip"`
 }
 
 type AAAA_Record struct {
-	Ttl uint32 `json"ttl",omitempty`
+	Ttl uint32 `json:"ttl,omitempty"`
 	Ip  net.IP `json:"ip"`
 }
 
 type TXT_Record struct {
-	Ttl  uint32 `json:"ttl",omitempty`
+	Ttl  uint32 `json:"ttl,omitempty"`
 	Text string `json:"text"`
 }
 
 type CNAME_Record struct {
-	Ttl  uint32 `json"ttl",omitempty`
+	Ttl  uint32 `json:"ttl,omitempty"`
 	Host string `json:"host"`
 }
 
 type NS_Record struct {
-	Ttl  uint32 `json"ttl",omitempty`
+	Ttl  uint32 `json:"ttl,omitempty"`
 	Host string `json:"host"`
 }
 
 type MX_Record struct {
-	Ttl        uint32 `json"ttl",omitempty`
+	Ttl        uint32 `json:"ttl,omitempty"`
 	Host       string `json:"host"`
 	Preference uint16 `json:"preference"`
 }
 
 type SRV_Record struct {
-	Ttl      uint32 `json"ttl",omitempty`
+	Ttl      uint32 `json:"ttl,omitempty"`
 	Priority uint16 `json:"priority"`
 	Weight   uint16 `json:"weight"`
-	Port     uint16 `json:"port""`
+	Port     uint16 `json:"port"`
 	Target   string `json:"target"`
 }
 
 type SOA_Record struct {
-	Ttl     uint32 `json"ttl",omitempty`
+	Ttl     uint32 `json:"ttl,omitempty"`
 	Ns      string `json:"ns"`
 	MBox    string `json:"MBox"`
 	Refresh uint32 `json:"refresh"`
@@ -354,7 +354,6 @@ func (redis *Redis) save(zone string, subdomain string, value string) error {
 }
 
 func (redis *Redis) load() error {
-	fmt.Println("load")
 	var (
 		reply interface{}
 		err error
