@@ -5,19 +5,17 @@
 ## syntax
 
 ~~~
-redis [ZONES...]
+redis
 ~~~
 
-* **ZONES**  zones redis should be authoritative for.
-
-if no zones are specified redis tries to load zones from redis server, if
-no zones could be found the block's zone will be used
+redis loads authoritative zones from redis server
 
 ~~~
-redis [ZONES...] {
+redis {
     address ADDR
     password PWD
     prefix PREFIX
+    suffix SUFFIX
     connect_timeout TIMEOUT
     read_timeout TIMEOUT
     ttl TTL
@@ -30,6 +28,7 @@ redis [ZONES...] {
 * `read_timeout` time in ms to wait for redis server to respond
 * `ttl` default ttl for dns records, 300 if not provided
 * `prefix` add PREFIX to all redis keys
+* `suffix` add SUFFIX to all redis keys
 
 ### examples
 
@@ -41,6 +40,7 @@ redis [ZONES...] {
         connect_timeout 100
         read_timeout 100
         ttl 360
+        prefix _dns:
     }
 }
 ~~~
@@ -57,24 +57,28 @@ proxy is not supported yet
 
 ### zones
 
-zones are stored in redis as a list of strings with *zones* as key
+each zone is stored in redis as a hash map with *zone* as key
 
 ~~~
-redis-cli>LRANGE zones 0 -1
+redis-cli>KEYS *
 1) "example.com."
+2) "example.net."
 redis-cli>
 ~~~
 
 ### dns RRs 
 
-dns RRs are stored in redis as json strings inside a hash map using address as key and RR type as field label
+dns RRs are stored in redis as json strings inside a hash map using address as field key.
+*@* is used for zone's own RR values.
 
 #### A
 
 ~~~json
 {
-    "ip4" : "1.2.3.4",
-    "ttl" : 360
+    "a":{
+        "ip4" : "1.2.3.4",
+        "ttl" : 360
+    }
 }
 ~~~
 
@@ -82,8 +86,10 @@ dns RRs are stored in redis as json strings inside a hash map using address as k
 
 ~~~json
 {
-    "ip6" : "::1",
-    "ttl" : 360
+    "aaaa":{
+        "ip6" : "::1",
+        "ttl" : 360
+    }
 }
 ~~~
 
@@ -91,8 +97,10 @@ dns RRs are stored in redis as json strings inside a hash map using address as k
 
 ~~~json
 {
-    "host" : "x.example.com.",
-    "ttl" : 360
+    "cname":{
+        "host" : "x.example.com.",
+        "ttl" : 360
+    }
 }
 ~~~
 
@@ -100,8 +108,10 @@ dns RRs are stored in redis as json strings inside a hash map using address as k
 
 ~~~json
 {
-    "text" : "this is a text",
-    "ttl" : 360
+    "txt":{
+        "text" : "this is a text",
+        "ttl" : 360
+    }
 }
 ~~~
 
@@ -109,8 +119,10 @@ dns RRs are stored in redis as json strings inside a hash map using address as k
 
 ~~~json
 {
-    "host" : "ns1.example.com.",
-    "ttl" : 360
+    "ns":{
+        "host" : "ns1.example.com.",
+        "ttl" : 360
+    }
 }
 ~~~
 
@@ -118,9 +130,11 @@ dns RRs are stored in redis as json strings inside a hash map using address as k
 
 ~~~json
 {
-    "host" : "mx1.example.com",
-    "priority" : 10,
-    "ttl" : 360
+    "mx":{
+        "host" : "mx1.example.com",
+        "priority" : 10,
+        "ttl" : 360
+    }
 }
 ~~~
 
@@ -128,11 +142,13 @@ dns RRs are stored in redis as json strings inside a hash map using address as k
 
 ~~~json
 {
-    "host" : "sip.example.com.",
-    "port" : 555,
-    "priority" : 10,
-    "weight" : 100,
-    "ttl" : 360
+    "srv":{
+        "host" : "sip.example.com.",
+        "port" : 555,
+        "priority" : 10,
+        "weight" : 100,
+        "ttl" : 360
+    }
 }
 ~~~
 
@@ -140,27 +156,51 @@ dns RRs are stored in redis as json strings inside a hash map using address as k
 
 ~~~json
 {
-    "ttl" : 100,
-    "mbox" : "hostmaster.example.com.",
-    "ns" : "ns1.example.com.",
-    "refresh" : 44,
-    "retry" : 55,
-    "expire" : 66
+    "soa":{
+        "ttl" : 100,
+        "mbox" : "hostmaster.example.com.",
+        "ns" : "ns1.example.com.",
+        "refresh" : 44,
+        "retry" : 55,
+        "expire" : 66
+    }
 }
 ~~~
 
 #### example
 
 ~~~
-redis-cli>hgetall x.example.com.
-1) "A"
-2) "[{\"ip4\":\"1.2.3.4\"},{\"ip4\":\"5.6.7.8\"}]"
-3) "AAAA"
-4) "[{\"ip6\":\"::1\"}]"
-5) "TXT"
-6) "[{\"text\":\"foo\"},{\"text\":\"bar\"}]"
-7) "NS"
-8) "[{\"host\":\"ns1.example.com.\"},{\"host\":\"ns2.example.com.\"}]"
-9) "MX"
-10) "[{\"host\":\"mx1.example.com.\", \"priority\":10},{\"host\":\"mx2.example.com.\", \"priority\":10}]"}
+$ORIGIN example.net.
+ example.net.                 300 IN  SOA   <SOA RDATA>
+ example.net.                 300     NS    ns1.example.net.
+ example.net.                 300     NS    ns2.example.net.
+ *.example.net.               300     TXT   "this is a wildcard"
+ *.example.net.               300     MX    10 host1.example.net.
+ sub.*.example.net.           300     TXT   "this is not a wildcard"
+ host1.example.net.           300     A     5.5.5.5
+ _ssh.tcp.host1.example.net.  300     SRV   <SRV RDATA>
+ _ssh.tcp.host2.example.net.  300     SRV   <SRV RDATA>
+ subdel.example.net.          300     NS    ns1.subdel.example.net.
+ subdel.example.net.          300     NS    ns2.subdel.example.net.
+~~~
+
+above zone data should be stored at redis as follow:
+
+~~~
+redis-cli> hgetall example.net.
+ 1) "_ssh._tcp.host1"
+ 2) "{\"srv\":[{\"ttl\":300, \"target\":\"tcp.example.com.\",\"port\":123,\"priority\":10,\"weight\":100}]}"
+ 3) "*"
+ 4) "{\"txt\":[{\"ttl\":300, \"text\":\"this is a wildcard\"}],\"mx\":[{\"ttl\":300, \"host\":\"host1.example.net.\",\"preference\": 10}]}"
+ 5) "host1"
+ 6) "{\"a\":[{\"ttl\":300, \"ip\":\"5.5.5.5\"}]}"
+ 7) "sub.*"
+ 8) "{\"txt\":[{\"ttl\":300, \"text\":\"this is not a wildcard\"}]}"
+ 9) "_ssh._tcp.host2"
+10) "{\"srv\":[{\"ttl\":300, \"target\":\"tcp.example.com.\",\"port\":123,\"priority\":10,\"weight\":100}]}"
+11) "subdel"
+12) "{\"ns\":[{\"ttl\":300, \"host\":\"ns1.subdel.example.net.\"},{\"ttl\":300, \"host\":\"ns2.subdel.example.net.\"}]}"
+13) "@"
+14) "{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.net.\",\"ns\":\"ns1.example.net.\",\"refresh\":44,\"retry\":55,\"expire\":66},\"ns\":[{\"ttl\":300, \"host\":\"ns1.example.net.\"},{\"ttl\":300, \"host\":\"ns2.example.net.\"}]}"
+redis-cli> 
 ~~~
