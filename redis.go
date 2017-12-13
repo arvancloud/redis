@@ -291,8 +291,8 @@ func (redis *Redis) findLocation(query string, zone string) string {
 
 	closestEncloser, sourceOfSynthesis, ok = splitQuery(query)
 	for ok {
-		ceExists := keyMatches(closestEncloser, redis.Zones[zone]) || keyExists(closestEncloser, redis.Zones[zone])
-		ssExists := keyExists(sourceOfSynthesis, redis.Zones[zone])
+		ceExists := keyMatches(closestEncloser, z) || keyExists(closestEncloser, z)
+		ssExists := keyExists(sourceOfSynthesis, z)
 		if ceExists {
 			if ssExists {
 				return sourceOfSynthesis
