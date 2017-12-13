@@ -16,7 +16,7 @@ var zones = []string {
 	"example.com.", "example.net.",
 }
 
-var entries = [][][]string {
+var lookupEntries = [][][]string {
 	{
 		{"@",
 			"{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}}",
@@ -216,11 +216,12 @@ func newRedisPlugin() *Redis {
 }
 
 func TestAnswer(t *testing.T) {
+	fmt.Println("lookup test")
 	r := newRedisPlugin()
 
 	for i, zone := range zones {
 		r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + zone + r.keySuffix)
-		for _, cmd := range entries[i] {
+		for _, cmd := range lookupEntries[i] {
 			err := r.save(zone, cmd[0], cmd[1])
 			if err != nil {
 				fmt.Println("error in redis", err)
