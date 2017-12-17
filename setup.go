@@ -102,10 +102,7 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 
 		}
 
-		err = redis.connect()
-		if err != nil {
-			return &Redis{}, err
-		}
+		redis.connect()
 
 		return &redis, nil
 	}

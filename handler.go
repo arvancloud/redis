@@ -1,7 +1,7 @@
 package redis
 
 import (
-	"fmt"
+	// "fmt"
 
 	"github.com/coredns/coredns/plugin"
 	"github.com/miekg/dns"
@@ -12,7 +12,7 @@ import (
 
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
-	fmt.Println("serveDNS")
+	// fmt.Println("serveDNS")
 	state := request.Request{W: w, Req: r}
 
 	qname := state.Name()

@@ -8,7 +8,6 @@ import (
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/test"
 
-	redisCon "github.com/garyburd/redigo/redis"
 	"github.com/miekg/dns"
 )
 
@@ -195,14 +194,13 @@ var testCases = [][]test.Case{
 func newRedisPlugin() *Redis {
 	ctxt = context.TODO()
 
-	opts := []redisCon.DialOption{}
-	opts = append(opts, redisCon.DialPassword("foobared"))
-	client, _ := redisCon.Dial("tcp", "localhost:6379", opts...)
 	redis := new(Redis)
 	redis.keyPrefix = ""
 	redis.keySuffix = ""
-	redis.redisc = client
 	redis.Ttl = 300
+	redis.redisAddress = "localhost:6379"
+	redis.redisPassword = "foobared"
+	redis.connect()
 	return redis
 	/*
 	return &Redis {
@@ -217,9 +215,11 @@ func newRedisPlugin() *Redis {
 func TestAnswer(t *testing.T) {
 	fmt.Println("lookup test")
 	r := newRedisPlugin()
+	conn := r.Pool.Get()
+	defer conn.Close()
 
 	for i, zone := range zones {
-		r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + zone + r.keySuffix)
+		conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + zone + r.keySuffix)
 		for _, cmd := range lookupEntries[i] {
 			err := r.save(zone, cmd[0], cmd[1])
 			if err != nil {

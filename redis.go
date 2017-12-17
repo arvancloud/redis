@@ -16,7 +16,7 @@ import (
 
 type Redis struct {
 	Next       plugin.Handler
-	redisc     redisCon.Conn
+	Pool       *redisCon.Pool
 	redisAddress   string
 	redisPassword  string
 	connectTimeout int
@@ -99,13 +99,14 @@ func (redis *Redis) GetZones() (zones []string) {
 		err error
 	)
 
-	if redis.redisc.Err() != nil {
-		if err = redis.connect(); err != nil {
-			return nil
-		}
+	conn := redis.Pool.Get()
+	if conn == nil {
+		fmt.Println("error connecting to redis")
+		return nil
 	}
+	defer conn.Close()
 
-	reply, err = redis.redisc.Do("KEYS", redis.keyPrefix + "*" + redis.keySuffix)
+	reply, err = conn.Do("KEYS", redis.keyPrefix + "*" + redis.keySuffix)
 	if err != nil {
 		return nil
 	}
@@ -362,25 +363,36 @@ func splitQuery(query string) (string, string, bool) {
 	return closestEncloser, sourceOfSynthesis, true
 }
 
-func (redis *Redis) connect() (err error) {
-	opts := []redisCon.DialOption{}
-	if redis.redisPassword != "" {
-		opts = append(opts, redisCon.DialPassword(redis.redisPassword))
-	}
-	if redis.connectTimeout != 0 {
-		opts = append(opts, redisCon.DialConnectTimeout(time.Duration(redis.connectTimeout)*time.Millisecond))
-	}
-	if redis.readTimeout != 0 {
-		opts = append(opts, redisCon.DialReadTimeout(time.Duration(redis.readTimeout)*time.Millisecond))
-	}
+func (redis *Redis) connect() {
+	redis.Pool = &redisCon.Pool{
+		Dial: func () (redisCon.Conn, error) {
+			opts := []redisCon.DialOption{}
+			if redis.redisPassword != "" {
+				opts = append(opts, redisCon.DialPassword(redis.redisPassword))
+			}
+			if redis.connectTimeout != 0 {
+				opts = append(opts, redisCon.DialConnectTimeout(time.Duration(redis.connectTimeout)*time.Millisecond))
+			}
+			if redis.readTimeout != 0 {
+				opts = append(opts, redisCon.DialReadTimeout(time.Duration(redis.readTimeout)*time.Millisecond))
+			}
 
-	redis.redisc, err = redisCon.Dial("tcp", redis.redisAddress, opts...)
-	return err
+			return redisCon.Dial("tcp", redis.redisAddress, opts...)
+		},
+	}
 }
 
 func (redis *Redis) save(zone string, subdomain string, value string) error {
 	var err error
-	_, err = redis.redisc.Do("HSET", redis.keyPrefix + zone + redis.keySuffix, subdomain, value)
+
+	conn := redis.Pool.Get()
+	if conn == nil {
+		fmt.Println("error connecting to redis")
+		return nil
+	}
+	defer conn.Close()
+
+	_, err = conn.Do("HSET", redis.keyPrefix + zone + redis.keySuffix, subdomain, value)
 	return err
 }
 
@@ -391,13 +403,14 @@ func (redis *Redis) load(zone string) *Zone {
 		vals []string
 	)
 
-	if redis.redisc.Err() != nil {
-		if err = redis.connect(); err != nil {
-			return nil
-		}
+	conn := redis.Pool.Get()
+	if conn == nil {
+		fmt.Println("error connecting to redis")
+		return nil
 	}
+	defer conn.Close()
 
-	reply, err = redis.redisc.Do("HGETALL", redis.keyPrefix + zone + redis.keySuffix)
+	reply, err = conn.Do("HGETALL", redis.keyPrefix + zone + redis.keySuffix)
 	if err != nil {
 		return nil
 	}

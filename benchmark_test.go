@@ -76,7 +76,9 @@ var testCasesMiss = []test.Case {
 func BenchmarkHit(b *testing.B) {
 	fmt.Println("benchmark test")
 	r := newRedisPlugin()
-	r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*" + r.keySuffix)
+	conn := r.Pool.Get()
+	defer conn.Close()
+	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*" + r.keySuffix)
 	for _, cmd := range benchmarkEntries {
 		err := r.save(zone, cmd[0], cmd[1])
 		if err != nil {
@@ -96,7 +98,9 @@ func BenchmarkHit(b *testing.B) {
 func BenchmarkMiss(b *testing.B) {
 	fmt.Println("benchmark test")
 	r := newRedisPlugin()
-	r.redisc.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*" + r.keySuffix)
+	conn := r.Pool.Get()
+	defer conn.Close()
+	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*" + r.keySuffix)
 	for _, cmd := range benchmarkEntries {
 		err := r.save(zone, cmd[0], cmd[1])
 		if err != nil {
