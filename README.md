@@ -1,6 +1,5 @@
-# redis
-
 *redis* enables reading zone data from redis database.
+this plugin should be located right next to *etcd* in *plugins.cfg*
 
 ## syntax
 
@@ -30,7 +29,7 @@ redis {
 * `prefix` add PREFIX to all redis keys
 * `suffix` add SUFFIX to all redis keys
 
-### examples
+## examples
 
 ~~~ corefile
 . {
