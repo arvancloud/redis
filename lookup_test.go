@@ -203,7 +203,6 @@ func newRedisPlugin() *Redis {
 	redis.keySuffix = ""
 	redis.redisc = client
 	redis.Ttl = 300
-	redis.load()
 	return redis
 	/*
 	return &Redis {

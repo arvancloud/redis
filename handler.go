@@ -1,8 +1,7 @@
 package redis
 
 import (
-	"time"
-	// "fmt"
+	"fmt"
 
 	"github.com/coredns/coredns/plugin"
 	"github.com/miekg/dns"
@@ -13,7 +12,7 @@ import (
 
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
-	// fmt.Println("serveDNS")
+	fmt.Println("serveDNS")
 	state := request.Request{W: w, Req: r}
 
 	qname := state.Name()
@@ -27,11 +26,12 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)
 	}
 
-	if time.Now().Sub(redis.LastUpdate) > time.Duration(redis.Ttl) {
-		redis.load()
+	z := redis.load(zone)
+	if z == nil {
+		return redis.errorResponse(state, zone, dns.RcodeServerFailure, nil)
 	}
 
-	location := redis.findLocation(qname, zone)
+	location := redis.findLocation(qname, z)
 	if len(location) == 0 { // empty, no results
 		return redis.errorResponse(state, zone, dns.RcodeNameError, nil)
 	}
@@ -40,25 +40,25 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	answers := make([]dns.RR, 0, 10)
 	extras := make([]dns.RR, 0, 10)
 
-	record := redis.get(location, zone)
+	record := redis.get(location, z)
 
 	switch qtype {
 	case "A":
-		answers, extras = redis.A(qname, zone, record)
+		answers, extras = redis.A(qname, z, record)
 	case "AAAA":
-		answers, extras = redis.AAAA(qname, zone, record)
+		answers, extras = redis.AAAA(qname, z, record)
 	case "CNAME":
-		answers, extras = redis.CNAME(qname, zone, record)
+		answers, extras = redis.CNAME(qname, z, record)
 	case "TXT":
-		answers, extras = redis.TXT(qname, zone, record)
+		answers, extras = redis.TXT(qname, z, record)
 	case "NS":
-		answers, extras = redis.NS(qname, zone, record)
+		answers, extras = redis.NS(qname, z, record)
 	case "MX":
-		answers, extras = redis.MX(qname, zone, record)
+		answers, extras = redis.MX(qname, z, record)
 	case "SRV":
-		answers, extras = redis.SRV(qname, zone, record)
+		answers, extras = redis.SRV(qname, z, record)
 	case "SOA":
-		answers, extras = redis.SOA(qname, zone, record)
+		answers, extras = redis.SOA(qname, z, record)
 	default:
 		return redis.errorResponse(state, zone, dns.RcodeNotImplemented, nil)
 	}
