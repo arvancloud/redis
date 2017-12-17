@@ -29,8 +29,7 @@ type Redis struct {
 
 type Zone struct {
 	Name      string
-	Locations map[string]*Record
-	Value     *Record
+	Locations map[string]struct{}
 }
 
 type Record struct {
@@ -323,10 +322,40 @@ func (redis *Redis) findLocation(query string, z *Zone) string {
 }
 
 func (redis *Redis) get(key string, z *Zone) *Record {
-	if key == z.Name {
-		return z.Value
+	var (
+		err error
+		reply interface{}
+		val string
+	)
+	conn := redis.Pool.Get()
+	if conn == nil {
+		fmt.Println("error connecting to redis")
+		return nil
 	}
-	return z.Locations[key]
+	defer conn.Close()
+
+	var label string
+	if key == z.Name {
+		label = "@"
+	} else {
+		label = key
+	}
+
+	reply, err = conn.Do("HGET", redis.keyPrefix + z.Name + redis.keySuffix, label)
+	if err != nil {
+		return nil
+	}
+	val, err = redisCon.String(reply, nil)
+	if err != nil {
+		return nil
+	}
+	r := new(Record)
+	err = json.Unmarshal([]byte(val), r)
+	if err != nil {
+		fmt.Println("parse error : ", val, err)
+		return nil
+	}
+	return r
 }
 
 func keyExists(key string, z *Zone) bool {
@@ -410,29 +439,19 @@ func (redis *Redis) load(zone string) *Zone {
 	}
 	defer conn.Close()
 
-	reply, err = conn.Do("HGETALL", redis.keyPrefix + zone + redis.keySuffix)
+	reply, err = conn.Do("HKEYS", redis.keyPrefix + zone + redis.keySuffix)
 	if err != nil {
 		return nil
 	}
 	z := new(Zone)
 	z.Name = zone
-	z.Locations = make(map[string]*Record)
 	vals, err = redisCon.Strings(reply, nil)
 	if err != nil {
 		return nil
 	}
-	for i := 0; i < len(vals); i += 2 {
-		r := new(Record)
-		err = json.Unmarshal([]byte(vals[i+1]), r)
-		if err != nil {
-			fmt.Println("parse error : ", vals[i+1], err)
-			continue
-		}
-		if vals[i] == "@" {
-			z.Value = r
-		} else {
-			z.Locations[vals[i]] = r
-		}
+	z.Locations = make(map[string]struct{})
+	for _, val := range vals {
+		z.Locations[val] = struct{}{}
 	}
 
 	return z
