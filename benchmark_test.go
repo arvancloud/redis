@@ -3,6 +3,7 @@ package redis
 import (
 	"testing"
 	"fmt"
+	"math/rand"
 
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/test"
@@ -87,11 +88,10 @@ func BenchmarkHit(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i :=0; i<b.N; i++ {
-		for _, tc := range testCasesHit {
-			m := tc.Msg()
-			rec := dnstest.NewRecorder(&test.ResponseWriter{})
-			r.ServeDNS(ctxt, rec, m)
-		}
+		j := rand.Intn(len(testCasesHit))
+		m := testCasesHit[j].Msg()
+		rec := dnstest.NewRecorder(&test.ResponseWriter{})
+		r.ServeDNS(ctxt, rec, m)
 	}
 }
 
@@ -109,10 +109,9 @@ func BenchmarkMiss(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i :=0; i<b.N; i++ {
-		for _, tc := range testCasesMiss {
-			m := tc.Msg()
-			rec := dnstest.NewRecorder(&test.ResponseWriter{})
-			r.ServeDNS(ctxt, rec, m)
-		}
+		j := rand.Intn(len(testCasesMiss))
+		m := testCasesMiss[j].Msg()
+		rec := dnstest.NewRecorder(&test.ResponseWriter{})
+		r.ServeDNS(ctxt, rec, m)
 	}
 }
