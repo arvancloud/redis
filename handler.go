@@ -2,6 +2,7 @@ package redis
 
 import (
 	// "fmt"
+	"time"
 
 	"github.com/coredns/coredns/plugin"
 	"github.com/miekg/dns"
@@ -20,7 +21,12 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	// fmt.Println("name : ", qname)
 	// fmt.Println("type : ", qtype)
-	zone := plugin.Zones(redis.GetZones()).Matches(qname)
+
+	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
+		redis.LoadZones()
+	}
+
+	zone := plugin.Zones(redis.Zones).Matches(qname)
 	// fmt.Println("zone : ", zone)
 	if zone == "" {
 		return plugin.NextOrFailure(qname, redis.Next, ctx, w, r)

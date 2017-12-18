@@ -15,16 +15,17 @@ import (
 )
 
 type Redis struct {
-	Next       plugin.Handler
-	Pool       *redisCon.Pool
+	Next           plugin.Handler
+	Pool           *redisCon.Pool
 	redisAddress   string
 	redisPassword  string
 	connectTimeout int
 	readTimeout    int
-	keyPrefix  string
-	keySuffix  string
-	Ttl        uint32
-	LastUpdate time.Time
+	keyPrefix      string
+	keySuffix      string
+	Ttl            uint32
+	Zones          []string
+	LastZoneUpdate time.Time
 }
 
 type Zone struct {
@@ -92,29 +93,31 @@ type SOA_Record struct {
 	MinTtl  uint32 `json:"minttl"`
 }
 
-func (redis *Redis) GetZones() (zones []string) {
+func (redis *Redis) LoadZones() {
 	var (
 		reply interface{}
 		err error
+		zones []string
 	)
 
 	conn := redis.Pool.Get()
 	if conn == nil {
 		fmt.Println("error connecting to redis")
-		return nil
+		return
 	}
 	defer conn.Close()
 
 	reply, err = conn.Do("KEYS", redis.keyPrefix + "*" + redis.keySuffix)
 	if err != nil {
-		return nil
+		return
 	}
 	zones, err = redisCon.Strings(reply, nil)
 	for i, _ := range zones {
 		zones[i] = strings.TrimPrefix(zones[i], redis.keyPrefix)
 		zones[i] = strings.TrimSuffix(zones[i], redis.keySuffix)
 	}
-	return zones
+	redis.LastZoneUpdate = time.Now()
+	redis.Zones = zones
 }
 
 func (redis *Redis) A(name string, z *Zone, record *Record) (answers, extras []dns.RR) {
@@ -480,4 +483,5 @@ func split255(s string) []string {
 const (
 	defaultTtl = 360
 	hostmaster = "hostmaster"
+	zoneUpdateTime = 10*time.Minute
 )

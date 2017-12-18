@@ -199,8 +199,9 @@ func newRedisPlugin() *Redis {
 	redis.keySuffix = ""
 	redis.Ttl = 300
 	redis.redisAddress = "localhost:6379"
-	redis.redisPassword = "foobared"
+	redis.redisPassword = ""
 	redis.connect()
+	redis.LoadZones()
 	return redis
 	/*
 	return &Redis {
