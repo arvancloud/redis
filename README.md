@@ -9,6 +9,8 @@ redis
 
 redis loads authoritative zones from redis server
 
+
+address will default to local redis serrver (localhsot:6379)
 ~~~
 redis {
     address ADDR
@@ -20,6 +22,9 @@ redis {
     ttl TTL
 }
 ~~~
+
+
+
 
 * `address` is redis server address to connect in the form of *host:port* or *ip:port*.
 * `password` is redis server *auth* key
