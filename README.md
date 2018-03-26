@@ -171,6 +171,18 @@ dns RRs are stored in redis as json strings inside a hash map using address as f
 }
 ~~~
 
+#### CAA
+
+~~~json
+{
+    "caa":{
+        "flag" : 0,
+        "tag" : "issue",
+        "value" : "letsencrypt.org"
+    }
+}
+~~~
+
 #### example
 
 ~~~
@@ -186,6 +198,7 @@ $ORIGIN example.net.
  _ssh.tcp.host2.example.net.  300     SRV   <SRV RDATA>
  subdel.example.net.          300     NS    ns1.subdel.example.net.
  subdel.example.net.          300     NS    ns2.subdel.example.net.
+ host2.example.net                    CAA   0 issue "letsencrypt.org"
 ~~~
 
 above zone data should be stored at redis as follow:
@@ -206,5 +219,7 @@ redis-cli> hgetall example.net.
 12) "{\"ns\":[{\"ttl\":300, \"host\":\"ns1.subdel.example.net.\"},{\"ttl\":300, \"host\":\"ns2.subdel.example.net.\"}]}"
 13) "@"
 14) "{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.net.\",\"ns\":\"ns1.example.net.\",\"refresh\":44,\"retry\":55,\"expire\":66},\"ns\":[{\"ttl\":300, \"host\":\"ns1.example.net.\"},{\"ttl\":300, \"host\":\"ns2.example.net.\"}]}"
-redis-cli> 
+15) "host2"
+16)"{\"caa\":[{\"flag\":0, \"tag\":\"issue\", \"value\":\"letsencrypt.org\"}]}"
+redis-cli>
 ~~~

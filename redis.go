@@ -41,6 +41,7 @@ type Record struct {
 	NS    []NS_Record `json:"ns,omitempty"`
 	MX    []MX_Record `json:"mx,omitempty"`
 	SRV   []SRV_Record `json:"srv,omitempty"`
+	CAA   []CAA_Record `json:"caa,omitempty"`
 	SOA   SOA_Record `json:"soa,omitempty"`
 }
 
@@ -91,6 +92,12 @@ type SOA_Record struct {
 	Retry   uint32 `json:"retry"`
 	Expire  uint32 `json:"expire"`
 	MinTtl  uint32 `json:"minttl"`
+}
+
+type CAA_Record struct {
+	Flag  uint8 `json:"flag"`
+	Tag   string `json:"tag"`
+	Value string `json:"value"`
 }
 
 func (redis *Redis) LoadZones() {
@@ -248,6 +255,24 @@ func (redis *Redis) SOA(name string, z *Zone, record *Record) (answers, extras [
 	}
 	r.Serial = redis.serial()
 	answers = append(answers, r)
+	return
+}
+
+func (redis *Redis) CAA(name string, z *Zone, record *Record) (answers, extras []dns.RR) {
+	if record == nil {
+		return
+	}
+	for _, caa := range record.CAA {
+		if caa.Value == "" || caa.Tag == ""{
+			continue
+		}
+		r := new(dns.CAA)
+		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeCAA, Class: dns.ClassINET}
+		r.Flag = caa.Flag
+		r.Tag = caa.Tag
+		r.Value = caa.Value
+		answers = append(answers, r)
+	}
 	return
 }
 
