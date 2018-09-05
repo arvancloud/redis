@@ -8,7 +8,6 @@ import (
 	"github.com/miekg/dns"
 	"golang.org/x/net/context"
 	"github.com/coredns/coredns/request"
-	"github.com/coredns/coredns/plugin/pkg/dnsutil"
 )
 
 // ServeDNS implements the plugin.Handler interface.
@@ -78,7 +77,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	m.Answer = append(m.Answer, answers...)
 	m.Extra = append(m.Extra, extras...)
 
-	m = dnsutil.Dedup(m)
 	state.SizeAndDo(m)
 	m, _ = state.Scrub(m)
 	w.WriteMsg(m)
