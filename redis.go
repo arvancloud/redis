@@ -11,7 +11,7 @@ import (
 
 	"github.com/coredns/coredns/plugin"
 
-	redisCon "github.com/garyburd/redigo/redis"
+	redisCon "github.com/gomodule/redigo/redis"
 )
 
 type Redis struct {
