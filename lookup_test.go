@@ -200,7 +200,7 @@ func newRedisPlugin() *Redis {
 	redis.Ttl = 300
 	redis.redisAddress = "localhost:6379"
 	redis.redisPassword = ""
-	redis.connect()
+	redis.Connect()
 	redis.LoadZones()
 	return redis
 	/*

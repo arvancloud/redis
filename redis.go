@@ -403,7 +403,7 @@ func splitQuery(query string) (string, string, bool) {
 	return closestEncloser, sourceOfSynthesis, true
 }
 
-func (redis *Redis) connect() {
+func (redis *Redis) Connect() {
 	redis.Pool = &redisCon.Pool{
 		Dial: func () (redisCon.Conn, error) {
 			opts := []redisCon.DialOption{}
