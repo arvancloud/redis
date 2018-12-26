@@ -13,14 +13,10 @@ import (
 
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
-	// fmt.Println("serveDNS")
 	state := request.Request{W: w, Req: r}
 
 	qname := state.Name()
 	qtype := state.Type()
-
-	// fmt.Println("name : ", qname)
-	// fmt.Println("type : ", qtype)
 
 	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
 		redis.LoadZones()
@@ -66,7 +62,6 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 			fmt.Println(err)
 		}
 		w.Hijack()
-		//w.Close() // Client closes connection
 		return dns.RcodeSuccess, nil
 	}
 
@@ -113,7 +108,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	state.SizeAndDo(m)
 	m = state.Scrub(m)
-	w.WriteMsg(m)
+	_ = w.WriteMsg(m)
 	return dns.RcodeSuccess, nil
 }
 
@@ -125,10 +120,8 @@ func (redis *Redis) errorResponse(state request.Request, zone string, rcode int,
 	m.SetRcode(state.Req, rcode)
 	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
 
-	// m.Ns, _ = redis.SOA(state.Name(), zone, nil)
-
 	state.SizeAndDo(m)
-	state.W.WriteMsg(m)
+	_ = state.W.WriteMsg(m)
 	// Return success as the rcode to signal we have written to the client.
 	return dns.RcodeSuccess, err
 }
