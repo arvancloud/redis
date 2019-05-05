@@ -78,7 +78,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	m.Extra = append(m.Extra, extras...)
 
 	state.SizeAndDo(m)
-	m, _ = state.Scrub(m)
+	m = state.Scrub(m)
 	w.WriteMsg(m)
 	return dns.RcodeSuccess, nil
 }
