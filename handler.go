@@ -1,25 +1,22 @@
 package redis
 
 import (
+	"fmt"
 	// "fmt"
 	"time"
 
 	"github.com/coredns/coredns/plugin"
+	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 	"golang.org/x/net/context"
-	"github.com/coredns/coredns/request"
 )
 
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
-	// fmt.Println("serveDNS")
 	state := request.Request{W: w, Req: r}
 
 	qname := state.Name()
 	qtype := state.Type()
-
-	// fmt.Println("name : ", qname)
-	// fmt.Println("type : ", qtype)
 
 	if time.Since(redis.LastZoneUpdate) > zoneUpdateTime {
 		redis.LoadZones()
@@ -36,11 +33,42 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		return redis.errorResponse(state, zone, dns.RcodeServerFailure, nil)
 	}
 
+	if qtype == "AXFR" {
+		records := redis.AXFR(z)
+
+		ch := make(chan *dns.Envelope)
+		tr := new(dns.Transfer)
+		tr.TsigSecret = nil
+
+		go func(ch chan *dns.Envelope) {
+			j, l := 0, 0
+
+			for i, r := range records {
+				l += dns.Len(r)
+				if l > transferLength {
+					ch <- &dns.Envelope{RR: records[j:i]}
+					l = 0
+					j = i
+				}
+			}
+			if j < len(records) {
+				ch <- &dns.Envelope{RR: records[j:]}
+			}
+			close(ch)
+		}(ch)
+
+		err := tr.Out(w, r, ch)
+		if err != nil {
+			fmt.Println(err)
+		}
+		w.Hijack()
+		return dns.RcodeSuccess, nil
+	}
+
 	location := redis.findLocation(qname, z)
 	if len(location) == 0 { // empty, no results
 		return redis.errorResponse(state, zone, dns.RcodeNameError, nil)
 	}
-	// fmt.Println("location : ", location)
 
 	answers := make([]dns.RR, 0, 10)
 	extras := make([]dns.RR, 0, 10)
@@ -66,6 +94,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		answers, extras = redis.SOA(qname, z, record)
 	case "CAA":
 		answers, extras = redis.CAA(qname, z, record)
+
 	default:
 		return redis.errorResponse(state, zone, dns.RcodeNotImplemented, nil)
 	}
@@ -79,7 +108,7 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	state.SizeAndDo(m)
 	m = state.Scrub(m)
-	w.WriteMsg(m)
+	_ = w.WriteMsg(m)
 	return dns.RcodeSuccess, nil
 }
 
@@ -91,10 +120,8 @@ func (redis *Redis) errorResponse(state request.Request, zone string, rcode int,
 	m.SetRcode(state.Req, rcode)
 	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
 
-	// m.Ns, _ = redis.SOA(state.Name(), zone, nil)
-
 	state.SizeAndDo(m)
-	state.W.WriteMsg(m)
+	_ = state.W.WriteMsg(m)
 	// Return success as the rcode to signal we have written to the client.
 	return dns.RcodeSuccess, err
 }

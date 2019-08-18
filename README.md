@@ -9,8 +9,7 @@ redis
 
 redis loads authoritative zones from redis server
 
-
-address will default to local redis serrver (localhsot:6379)
+Address will default to local redis server (localhost:6379)
 ~~~
 redis {
     address ADDR
@@ -22,9 +21,6 @@ redis {
     ttl TTL
 }
 ~~~
-
-
-
 
 * `address` is redis server address to connect in the form of *host:port* or *ip:port*.
 * `password` is redis server *auth* key
@@ -80,7 +76,7 @@ dns RRs are stored in redis as json strings inside a hash map using address as f
 ~~~json
 {
     "a":{
-        "ip4" : "1.2.3.4",
+        "ip" : "1.2.3.4",
         "ttl" : 360
     }
 }
@@ -91,7 +87,7 @@ dns RRs are stored in redis as json strings inside a hash map using address as f
 ~~~json
 {
     "aaaa":{
-        "ip6" : "::1",
+        "ip" : "::1",
         "ttl" : 360
     }
 }

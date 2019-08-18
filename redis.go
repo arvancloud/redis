@@ -1,17 +1,15 @@
 package redis
 
 import (
-	"time"
 	"encoding/json"
-	"strings"
 	"fmt"
-	"net"
-
 	"github.com/miekg/dns"
+	"strings"
+	"time"
 
 	"github.com/coredns/coredns/plugin"
 
-	redisCon "github.com/garyburd/redigo/redis"
+	redisCon "github.com/gomodule/redigo/redis"
 )
 
 type Redis struct {
@@ -26,78 +24,6 @@ type Redis struct {
 	Ttl            uint32
 	Zones          []string
 	LastZoneUpdate time.Time
-}
-
-type Zone struct {
-	Name      string
-	Locations map[string]struct{}
-}
-
-type Record struct {
-	A     []A_Record `json:"a,omitempty"`
-	AAAA  []AAAA_Record `json:"aaaa,omitempty"`
-	TXT   []TXT_Record `json:"txt,omitempty"`
-	CNAME []CNAME_Record `json:"cname,omitempty"`
-	NS    []NS_Record `json:"ns,omitempty"`
-	MX    []MX_Record `json:"mx,omitempty"`
-	SRV   []SRV_Record `json:"srv,omitempty"`
-	CAA   []CAA_Record `json:"caa,omitempty"`
-	SOA   SOA_Record `json:"soa,omitempty"`
-}
-
-type A_Record struct {
-	Ttl uint32 `json:"ttl,omitempty"`
-	Ip  net.IP `json:"ip"`
-}
-
-type AAAA_Record struct {
-	Ttl uint32 `json:"ttl,omitempty"`
-	Ip  net.IP `json:"ip"`
-}
-
-type TXT_Record struct {
-	Ttl  uint32 `json:"ttl,omitempty"`
-	Text string `json:"text"`
-}
-
-type CNAME_Record struct {
-	Ttl  uint32 `json:"ttl,omitempty"`
-	Host string `json:"host"`
-}
-
-type NS_Record struct {
-	Ttl  uint32 `json:"ttl,omitempty"`
-	Host string `json:"host"`
-}
-
-type MX_Record struct {
-	Ttl        uint32 `json:"ttl,omitempty"`
-	Host       string `json:"host"`
-	Preference uint16 `json:"preference"`
-}
-
-type SRV_Record struct {
-	Ttl      uint32 `json:"ttl,omitempty"`
-	Priority uint16 `json:"priority"`
-	Weight   uint16 `json:"weight"`
-	Port     uint16 `json:"port"`
-	Target   string `json:"target"`
-}
-
-type SOA_Record struct {
-	Ttl     uint32 `json:"ttl,omitempty"`
-	Ns      string `json:"ns"`
-	MBox    string `json:"MBox"`
-	Refresh uint32 `json:"refresh"`
-	Retry   uint32 `json:"retry"`
-	Expire  uint32 `json:"expire"`
-	MinTtl  uint32 `json:"minttl"`
-}
-
-type CAA_Record struct {
-	Flag  uint8 `json:"flag"`
-	Tag   string `json:"tag"`
-	Value string `json:"value"`
 }
 
 func (redis *Redis) LoadZones() {
@@ -133,7 +59,7 @@ func (redis *Redis) A(name string, z *Zone, record *Record) (answers, extras []d
 			continue
 		}
 		r := new(dns.A)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeA,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeA,
 			Class: dns.ClassINET, Ttl: redis.minTtl(a.Ttl)}
 		r.A = a.Ip
 		answers = append(answers, r)
@@ -147,7 +73,7 @@ func (redis Redis) AAAA(name string, z *Zone, record *Record) (answers, extras [
 			continue
 		}
 		r := new(dns.AAAA)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeAAAA,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeAAAA,
 			Class: dns.ClassINET, Ttl: redis.minTtl(aaaa.Ttl)}
 		r.AAAA = aaaa.Ip
 		answers = append(answers, r)
@@ -161,7 +87,7 @@ func (redis *Redis) CNAME(name string, z *Zone, record *Record) (answers, extras
 			continue
 		}
 		r := new(dns.CNAME)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeCNAME,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeCNAME,
 			Class: dns.ClassINET, Ttl: redis.minTtl(cname.Ttl)}
 		r.Target = dns.Fqdn(cname.Host)
 		answers = append(answers, r)
@@ -175,7 +101,7 @@ func (redis *Redis) TXT(name string, z *Zone, record *Record) (answers, extras [
 			continue
 		}
 		r:= new(dns.TXT)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeTXT,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeTXT,
 			Class: dns.ClassINET, Ttl: redis.minTtl(txt.Ttl)}
 		r.Txt = split255(txt.Text)
 		answers = append(answers, r)
@@ -189,7 +115,7 @@ func (redis *Redis) NS(name string, z *Zone, record *Record) (answers, extras []
 			continue
 		}
 		r := new(dns.NS)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeNS,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeNS,
 			Class: dns.ClassINET, Ttl: redis.minTtl(ns.Ttl)}
 		r.Ns = ns.Host
 		answers = append(answers, r)
@@ -204,7 +130,7 @@ func (redis *Redis) MX(name string, z *Zone, record *Record) (answers, extras []
 			continue
 		}
 		r := new(dns.MX)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeMX,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeMX,
 			Class: dns.ClassINET, Ttl: redis.minTtl(mx.Ttl)}
 		r.Mx = mx.Host
 		r.Preference = mx.Preference
@@ -220,7 +146,7 @@ func (redis *Redis) SRV(name string, z *Zone, record *Record) (answers, extras [
 			continue
 		}
 		r := new(dns.SRV)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeSRV,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeSRV,
 			Class: dns.ClassINET, Ttl: redis.minTtl(srv.Ttl)}
 		r.Target = srv.Target
 		r.Weight = srv.Weight
@@ -235,7 +161,7 @@ func (redis *Redis) SRV(name string, z *Zone, record *Record) (answers, extras [
 func (redis *Redis) SOA(name string, z *Zone, record *Record) (answers, extras []dns.RR) {
 	r := new(dns.SOA)
 	if record.SOA.Ns == "" {
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeSOA,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeSOA,
 			Class: dns.ClassINET, Ttl: redis.Ttl}
 		r.Ns = "ns1." + name
 		r.Mbox = "hostmaster." + name
@@ -244,7 +170,7 @@ func (redis *Redis) SOA(name string, z *Zone, record *Record) (answers, extras [
 		r.Expire = 3600
 		r.Minttl = redis.Ttl
 	} else {
-		r.Hdr = dns.RR_Header{Name: z.Name, Rrtype: dns.TypeSOA,
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(z.Name), Rrtype: dns.TypeSOA,
 			Class: dns.ClassINET, Ttl: redis.minTtl(record.SOA.Ttl)}
 		r.Ns = record.SOA.Ns
 		r.Mbox = record.SOA.MBox
@@ -267,13 +193,70 @@ func (redis *Redis) CAA(name string, z *Zone, record *Record) (answers, extras [
 			continue
 		}
 		r := new(dns.CAA)
-		r.Hdr = dns.RR_Header{Name: name, Rrtype: dns.TypeCAA, Class: dns.ClassINET}
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeCAA, Class: dns.ClassINET}
 		r.Flag = caa.Flag
 		r.Tag = caa.Tag
 		r.Value = caa.Value
 		answers = append(answers, r)
 	}
 	return
+}
+
+func (redis *Redis) AXFR(z *Zone) (records []dns.RR) {
+	//soa, _ := redis.SOA(z.Name, z, record)
+	soa := make([]dns.RR, 0)
+	answers := make([]dns.RR, 0, 10)
+	extras := make([]dns.RR, 0, 10)
+
+	// Allocate slices for rr Records
+	records = append(records, soa...)
+	for key := range z.Locations {
+		if key == "@"  {
+			location := redis.findLocation(z.Name, z)
+			record := redis.get(location, z)
+			soa, _ = redis.SOA(z.Name, z, record)
+		} else {
+			fqdnKey := dns.Fqdn(key) + z.Name
+			var as []dns.RR
+			var xs []dns.RR
+
+			location := redis.findLocation(fqdnKey, z)
+			record := redis.get(location, z)
+
+			// Pull all zone records
+			as, xs = redis.A(fqdnKey, z, record)
+			answers = append(answers, as...)
+			extras = append(extras, xs...)
+
+			as, xs = redis.AAAA(fqdnKey, z, record)
+			answers = append(answers, as...)
+			extras = append(extras, xs...)
+
+			as, xs = redis.CNAME(fqdnKey, z, record)
+			answers = append(answers, as...)
+			extras = append(extras, xs...)
+
+			as, xs = redis.MX(fqdnKey, z, record)
+			answers = append(answers, as...)
+			extras = append(extras, xs...)
+
+			as, xs = redis.SRV(fqdnKey, z, record)
+			answers = append(answers, as...)
+			extras = append(extras, xs...)
+
+			as, xs = redis.TXT(fqdnKey, z, record)
+			answers = append(answers, as...)
+			extras = append(extras, xs...)
+		}
+	}
+
+	records = soa
+	records = append(records, answers...)
+	records = append(records, extras...)
+	records = append(records, soa...)
+
+	fmt.Println(records)
+ 	return
 }
 
 func (redis *Redis) hosts(name string, z *Zone) []dns.RR {
@@ -420,7 +403,7 @@ func splitQuery(query string) (string, string, bool) {
 	return closestEncloser, sourceOfSynthesis, true
 }
 
-func (redis *Redis) connect() {
+func (redis *Redis) Connect() {
 	redis.Pool = &redisCon.Pool{
 		Dial: func () (redisCon.Conn, error) {
 			opts := []redisCon.DialOption{}
@@ -509,4 +492,5 @@ const (
 	defaultTtl = 360
 	hostmaster = "hostmaster"
 	zoneUpdateTime = 10*time.Minute
+	transferLength = 1000
 )
