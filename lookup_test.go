@@ -15,10 +15,10 @@ var zones = []string {
 	"example.com.", "example.net.",
 }
 
-var lookupEntries = [][][]string {
+var lookupEntries = [][][]string{
 	{
 		{"@",
-			"{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}}",
+			"{\"a\":[{\"ttl\":300, \"ip\":\"5.5.5.5\"}], \"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}}",
 		},
 		{"x",
 			"{\"a\":[{\"ttl\":300, \"ip\":\"1.2.3.4\"},{\"ttl\":300, \"ip\":\"5.6.7.8\"}]," +
@@ -28,7 +28,7 @@ var lookupEntries = [][][]string {
 			"\"mx\":[{\"ttl\":300, \"host\":\"mx1.example.com.\", \"preference\":10},{\"ttl\":300, \"host\":\"mx2.example.com.\", \"preference\":10}]}",
 		},
 		{"y",
-			"{\"cname\":[{\"ttl\":300, \"host\":\"x.example.com.\"}]}",
+			"{\"cname\":[{\"ttl\":300, \"host\":\"example.com.\"}]}",
 		},
 		{"ns1",
 			"{\"a\":[{\"ttl\":300, \"ip\":\"2.2.2.2\"}]}",
