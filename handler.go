@@ -121,6 +121,9 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		println(CNAMERecord.Host)
 		var query = strings.TrimSuffix(CNAMERecord.Host, "."+z.Name)
 		records := redis.get(query, z)
+		if records == nil {
+			continue
+		}
 
 		answersN := make([]dns.RR, 0, 10)
 		extrasN := make([]dns.RR, 0, 10)
