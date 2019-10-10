@@ -118,9 +118,17 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	// If there is a CNAME RR in the answers, solve the alias
 	for _, CNAMERecord := range record.CNAME {
-		println(CNAMERecord.Host)
 		var query = strings.TrimSuffix(CNAMERecord.Host, "."+z.Name)
-		records := redis.get(query, z)
+		var records *Record
+		if query == CNAMERecord.Host {
+			//this is not the correct zone lets load the correct one
+			qzone := plugin.Zones(redis.Zones).Matches(CNAMERecord.Host)
+			qz := redis.load(qzone)
+			query = strings.TrimSuffix(CNAMERecord.Host, "."+ qz.Name)
+			records = redis.get(query, qz)
+		} else {
+			records = redis.get(query, z)
+		}
 		if records == nil {
 			continue
 		}
