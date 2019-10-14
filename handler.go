@@ -117,28 +117,30 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 	m.Extra = append(m.Extra, extras...)
 
 	// If there is a CNAME RR in the answers, solve the alias
-	for _, CNAMERecord := range record.CNAME {
-		var query = strings.TrimSuffix(CNAMERecord.Host, "."+z.Name)
-		var records *Record
-		if query == CNAMERecord.Host {
-			//this is not the correct zone lets load the correct one
-			qzone := plugin.Zones(redis.Zones).Matches(CNAMERecord.Host)
-			qz := redis.load(qzone)
-			query = strings.TrimSuffix(CNAMERecord.Host, "."+ qz.Name)
-			records = redis.get(query, qz)
-		} else {
-			records = redis.get(query, z)
-		}
-		if records == nil {
-			continue
-		}
+	if record != nil {
+		for _, CNAMERecord := range record.CNAME {
+			var query = strings.TrimSuffix(CNAMERecord.Host, "."+z.Name)
+			var records *Record
+			if query == CNAMERecord.Host {
+				//this is not the correct zone lets load the correct one
+				qzone := plugin.Zones(redis.Zones).Matches(CNAMERecord.Host)
+				qz := redis.load(qzone)
+				query = strings.TrimSuffix(CNAMERecord.Host, "."+qz.Name)
+				records = redis.get(query, qz)
+			} else {
+				records = redis.get(query, z)
+			}
+			if records == nil {
+				continue
+			}
 
-		answersN := make([]dns.RR, 0, 10)
-		extrasN := make([]dns.RR, 0, 10)
-		answersN, extrasN = redis.A(CNAMERecord.Host, z, records)
-		m.Answer = append(m.Answer, answersN...)
-		m.Extra = append(m.Extra, extrasN...)
+			answersN := make([]dns.RR, 0, 10)
+			extrasN := make([]dns.RR, 0, 10)
+			answersN, extrasN = redis.A(CNAMERecord.Host, z, records)
+			m.Answer = append(m.Answer, answersN...)
+			m.Extra = append(m.Extra, extrasN...)
 
+		}
 	}
 
 	state.SizeAndDo(m)
