@@ -62,7 +62,7 @@ func (redis *Redis) A(name string, z *Zone, record *Record) (answers, extras []d
 		}
 		r := new(dns.A)
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeA,
-			Class: dns.ClassINET, Ttl: redis.minTtl(a.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(a.Ttl)}
 		r.A = a.Ip
 		answers = append(answers, r)
 	}
@@ -76,7 +76,7 @@ func (redis Redis) AAAA(name string, z *Zone, record *Record) (answers, extras [
 		}
 		r := new(dns.AAAA)
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeAAAA,
-			Class: dns.ClassINET, Ttl: redis.minTtl(aaaa.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(aaaa.Ttl)}
 		r.AAAA = aaaa.Ip
 		answers = append(answers, r)
 	}
@@ -90,7 +90,7 @@ func (redis *Redis) CNAME(name string, z *Zone, record *Record) (answers, extras
 		}
 		r := new(dns.CNAME)
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeCNAME,
-			Class: dns.ClassINET, Ttl: redis.minTtl(cname.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
 		r.Target = dns.Fqdn(cname.Host)
 		answers = append(answers, r)
 	}
@@ -104,7 +104,7 @@ func (redis *Redis) TXT(name string, z *Zone, record *Record) (answers, extras [
 		}
 		r := new(dns.TXT)
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeTXT,
-			Class: dns.ClassINET, Ttl: redis.minTtl(txt.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(txt.Ttl)}
 		r.Txt = split255(txt.Text)
 		answers = append(answers, r)
 	}
@@ -118,7 +118,7 @@ func (redis *Redis) NS(name string, z *Zone, record *Record) (answers, extras []
 		}
 		r := new(dns.NS)
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeNS,
-			Class: dns.ClassINET, Ttl: redis.minTtl(ns.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(ns.Ttl)}
 		r.Ns = ns.Host
 		answers = append(answers, r)
 		extras = append(extras, redis.hosts(ns.Host, z)...)
@@ -133,7 +133,7 @@ func (redis *Redis) MX(name string, z *Zone, record *Record) (answers, extras []
 		}
 		r := new(dns.MX)
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeMX,
-			Class: dns.ClassINET, Ttl: redis.minTtl(mx.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(mx.Ttl)}
 		r.Mx = mx.Host
 		r.Preference = mx.Preference
 		answers = append(answers, r)
@@ -149,7 +149,7 @@ func (redis *Redis) SRV(name string, z *Zone, record *Record) (answers, extras [
 		}
 		r := new(dns.SRV)
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeSRV,
-			Class: dns.ClassINET, Ttl: redis.minTtl(srv.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(srv.Ttl)}
 		r.Target = srv.Target
 		r.Weight = srv.Weight
 		r.Port = srv.Port
@@ -174,7 +174,7 @@ func (redis *Redis) SOA(name string, z *Zone, record *Record) (answers, extras [
 		r.Minttl = 172800
 	} else {
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(z.Name), Rrtype: dns.TypeSOA,
-			Class: dns.ClassINET, Ttl: redis.minTtl(record.SOA.Ttl)}
+			Class: dns.ClassINET, Ttl: redis.ttl(record.SOA.Ttl)}
 		r.Ns = record.SOA.MName
 		r.Mbox = record.SOA.RName
 		r.Serial = record.SOA.Serial
@@ -295,20 +295,14 @@ func (redis *Redis) soaSerial() uint32 {
 	return uint32(r)
 }
 
-func (redis *Redis) minTtl(ttl uint32) uint32 {
-	if redis.Ttl == 0 && ttl == 0 {
-		return defaultTtl
-	}
-	if redis.Ttl == 0 {
+func (redis *Redis) ttl(ttl uint32) uint32 {
+	if ttl > 0 {
 		return ttl
 	}
-	if ttl == 0 {
+	if redis.Ttl > 0 {
 		return redis.Ttl
 	}
-	if redis.Ttl < ttl {
-		return redis.Ttl
-	}
-	return ttl
+	return defaultTtl
 }
 
 func (redis *Redis) findLocation(query string, z *Zone) string {
@@ -502,8 +496,7 @@ func split255(s string) []string {
 }
 
 const (
-	defaultTtl     = 360
-	hostmaster     = "hostmaster"
+	defaultTtl     = 3600
 	zoneUpdateTime = 10 * time.Minute
 	transferLength = 1000
 )
