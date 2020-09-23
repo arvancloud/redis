@@ -8,15 +8,15 @@ type Zone struct {
 }
 
 type Record struct {
-	A     []A_Record `json:"a,omitempty"`
-	AAAA  []AAAA_Record `json:"aaaa,omitempty"`
-	TXT   []TXT_Record `json:"txt,omitempty"`
+	A     []A_Record     `json:"a,omitempty"`
+	AAAA  []AAAA_Record  `json:"aaaa,omitempty"`
+	TXT   []TXT_Record   `json:"txt,omitempty"`
 	CNAME []CNAME_Record `json:"cname,omitempty"`
-	NS    []NS_Record `json:"ns,omitempty"`
-	MX    []MX_Record `json:"mx,omitempty"`
-	SRV   []SRV_Record `json:"srv,omitempty"`
-	CAA   []CAA_Record `json:"caa,omitempty"`
-	SOA   SOA_Record `json:"soa,omitempty"`
+	NS    []NS_Record    `json:"ns,omitempty"`
+	MX    []MX_Record    `json:"mx,omitempty"`
+	SRV   []SRV_Record   `json:"srv,omitempty"`
+	CAA   []CAA_Record   `json:"caa,omitempty"`
+	SOA   SOA_Record     `json:"soa,omitempty"`
 }
 
 type A_Record struct {
@@ -71,7 +71,7 @@ type SOA_Record struct {
 }
 
 type CAA_Record struct {
-	Flag  uint8 `json:"flag"`
+	Flag  uint8  `json:"flag"`
 	Tag   string `json:"tag"`
 	Value string `json:"value"`
 }

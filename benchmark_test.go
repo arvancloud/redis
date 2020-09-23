@@ -1,9 +1,9 @@
 package redis
 
 import (
-	"testing"
 	"fmt"
 	"math/rand"
+	"testing"
 
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/test"
@@ -28,7 +28,7 @@ var benchmarkEntries = [][]string{
 	},
 }
 
-var testCasesHit = []test.Case {
+var testCasesHit = []test.Case{
 	{
 		Qname: "example.com.", Qtype: dns.TypeA,
 		Answer: []dns.RR{
@@ -55,7 +55,7 @@ var testCasesHit = []test.Case {
 	},
 }
 
-var testCasesMiss = []test.Case {
+var testCasesMiss = []test.Case{
 	{
 		Qname: "q.example.com.", Qtype: dns.TypeA,
 		Rcode: dns.RcodeNameError,
@@ -79,7 +79,7 @@ func BenchmarkHit(b *testing.B) {
 	r := newRedisPlugin()
 	conn := r.Pool.Get()
 	defer conn.Close()
-	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*" + r.keySuffix)
+	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix+"*"+r.keySuffix)
 	for _, cmd := range benchmarkEntries {
 		err := r.save(zone, cmd[0], cmd[1])
 		if err != nil {
@@ -87,7 +87,7 @@ func BenchmarkHit(b *testing.B) {
 		}
 	}
 	b.ResetTimer()
-	for i :=0; i<b.N; i++ {
+	for i := 0; i < b.N; i++ {
 		j := rand.Intn(len(testCasesHit))
 		m := testCasesHit[j].Msg()
 		rec := dnstest.NewRecorder(&test.ResponseWriter{})
@@ -100,7 +100,7 @@ func BenchmarkMiss(b *testing.B) {
 	r := newRedisPlugin()
 	conn := r.Pool.Get()
 	defer conn.Close()
-	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix + "*" + r.keySuffix)
+	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix+"*"+r.keySuffix)
 	for _, cmd := range benchmarkEntries {
 		err := r.save(zone, cmd[0], cmd[1])
 		if err != nil {
@@ -108,7 +108,7 @@ func BenchmarkMiss(b *testing.B) {
 		}
 	}
 	b.ResetTimer()
-	for i :=0; i<b.N; i++ {
+	for i := 0; i < b.N; i++ {
 		j := rand.Intn(len(testCasesMiss))
 		m := testCasesMiss[j].Msg()
 		rec := dnstest.NewRecorder(&test.ResponseWriter{})

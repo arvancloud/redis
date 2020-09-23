@@ -30,13 +30,13 @@ func setup(c *caddy.Controller) error {
 }
 
 func redisParse(c *caddy.Controller) (*Redis, error) {
-	redis := Redis {
-		keyPrefix:"",
-		keySuffix:"",
-		Ttl:300,
+	redis := Redis{
+		keyPrefix: "",
+		keySuffix: "",
+		Ttl:       300,
 	}
 	var (
-		err            error
+		err error
 	)
 
 	for c.Next() {
@@ -77,7 +77,7 @@ func redisParse(c *caddy.Controller) (*Redis, error) {
 					}
 					redis.readTimeout, err = strconv.Atoi(c.Val())
 					if err != nil {
-						redis.readTimeout = 0;
+						redis.readTimeout = 0
 					}
 				case "ttl":
 					if !c.NextArg() {
