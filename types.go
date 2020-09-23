@@ -58,14 +58,16 @@ type SRV_Record struct {
 	Target   string `json:"target"`
 }
 
+// SOA RDATA (https://tools.ietf.org/html/rfc1035#section-3.3.13)
 type SOA_Record struct {
 	Ttl     uint32 `json:"ttl,omitempty"`
-	Ns      string `json:"ns"`
-	MBox    string `json:"MBox"`
+	MName   string `json:"mname"`
+	RName   string `json:"rname"`
+	Serial  uint32 `json:"serial"`
 	Refresh uint32 `json:"refresh"`
 	Retry   uint32 `json:"retry"`
 	Expire  uint32 `json:"expire"`
-	MinTtl  uint32 `json:"minttl"`
+	Minimum uint32 `json:"minimum"`
 }
 
 type CAA_Record struct {

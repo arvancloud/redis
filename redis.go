@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/miekg/dns"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -160,26 +162,30 @@ func (redis *Redis) SRV(name string, z *Zone, record *Record) (answers, extras [
 
 func (redis *Redis) SOA(name string, z *Zone, record *Record) (answers, extras []dns.RR) {
 	r := new(dns.SOA)
-	if record.SOA.Ns == "" {
+	// default value if no SOA record in backend
+	if record.SOA.MName == "" {
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeSOA,
 			Class: dns.ClassINET, Ttl: redis.Ttl}
 		r.Ns = "ns1." + name
 		r.Mbox = "hostmaster." + name
 		r.Refresh = 86400
 		r.Retry = 7200
-		r.Expire = 3600
-		r.Minttl = redis.Ttl
+		r.Expire = 3600000
+		r.Minttl = 172800
 	} else {
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(z.Name), Rrtype: dns.TypeSOA,
 			Class: dns.ClassINET, Ttl: redis.minTtl(record.SOA.Ttl)}
-		r.Ns = record.SOA.Ns
-		r.Mbox = record.SOA.MBox
+		r.Ns = record.SOA.MName
+		r.Mbox = record.SOA.RName
+		r.Serial = record.SOA.Serial
 		r.Refresh = record.SOA.Refresh
 		r.Retry = record.SOA.Retry
 		r.Expire = record.SOA.Expire
-		r.Minttl = record.SOA.MinTtl
+		r.Minttl = record.SOA.Minimum
 	}
-	r.Serial = redis.serial()
+	if r.Serial == 0 {
+		r.Serial = redis.soaSerial()
+	}
 	answers = append(answers, r)
 	return
 }
@@ -278,8 +284,15 @@ func (redis *Redis) hosts(name string, z *Zone) []dns.RR {
 	return answers
 }
 
-func (redis *Redis) serial() uint32 {
-	return uint32(time.Now().Unix())
+func (redis *Redis) soaSerial() uint32 {
+	n := time.Now().UTC()
+	// calculate two digit number (0-99) based on the minute of the day, 1440 / 14.4545 = 99,0003
+	c := int(math.Floor(((float64(n.Hour() + 1)) * float64(n.Minute() + 1)) / 14.5454))
+	r, err := strconv.ParseUint(fmt.Sprintf("%s%02d", n.Format("20060102"), c), 10, 32)
+	if err != nil {
+		return uint32(time.Now().Unix())
+	}
+	return uint32(r)
 }
 
 func (redis *Redis) minTtl(ttl uint32) uint32 {
