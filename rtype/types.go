@@ -1,4 +1,4 @@
-package redis
+package rtype
 
 import "net"
 
@@ -8,49 +8,49 @@ type Zone struct {
 }
 
 type Record struct {
-	A     []A_Record     `json:"a,omitempty"`
-	AAAA  []AAAA_Record  `json:"aaaa,omitempty"`
-	TXT   []TXT_Record   `json:"txt,omitempty"`
-	CNAME []CNAME_Record `json:"cname,omitempty"`
-	NS    []NS_Record    `json:"ns,omitempty"`
-	MX    []MX_Record    `json:"mx,omitempty"`
-	SRV   []SRV_Record   `json:"srv,omitempty"`
-	CAA   []CAA_Record   `json:"caa,omitempty"`
-	SOA   SOA_Record     `json:"soa,omitempty"`
+	A     []A     `json:"a,omitempty"`
+	AAAA  []AAAA  `json:"aaaa,omitempty"`
+	TXT   []TXT   `json:"txt,omitempty"`
+	CNAME []CNAME `json:"cname,omitempty"`
+	NS    []NS    `json:"ns,omitempty"`
+	MX    []MX    `json:"mx,omitempty"`
+	SRV   []SRV   `json:"srv,omitempty"`
+	CAA   []CAA   `json:"caa,omitempty"`
+	SOA   SOA     `json:"soa,omitempty"`
 }
 
-type A_Record struct {
+type A struct {
 	Ttl uint32 `json:"ttl,omitempty"`
 	Ip  net.IP `json:"ip"`
 }
 
-type AAAA_Record struct {
+type AAAA struct {
 	Ttl uint32 `json:"ttl,omitempty"`
 	Ip  net.IP `json:"ip"`
 }
 
-type TXT_Record struct {
+type TXT struct {
 	Ttl  uint32 `json:"ttl,omitempty"`
 	Text string `json:"text"`
 }
 
-type CNAME_Record struct {
+type CNAME struct {
 	Ttl  uint32 `json:"ttl,omitempty"`
 	Host string `json:"host"`
 }
 
-type NS_Record struct {
+type NS struct {
 	Ttl  uint32 `json:"ttl,omitempty"`
 	Host string `json:"host"`
 }
 
-type MX_Record struct {
+type MX struct {
 	Ttl        uint32 `json:"ttl,omitempty"`
 	Host       string `json:"host"`
 	Preference uint16 `json:"preference"`
 }
 
-type SRV_Record struct {
+type SRV struct {
 	Ttl      uint32 `json:"ttl,omitempty"`
 	Priority uint16 `json:"priority"`
 	Weight   uint16 `json:"weight"`
@@ -59,7 +59,7 @@ type SRV_Record struct {
 }
 
 // SOA RDATA (https://tools.ietf.org/html/rfc1035#section-3.3.13)
-type SOA_Record struct {
+type SOA struct {
 	Ttl     uint32 `json:"ttl,omitempty"`
 	MName   string `json:"mname"`
 	RName   string `json:"rname"`
@@ -70,7 +70,7 @@ type SOA_Record struct {
 	Minimum uint32 `json:"minimum"`
 }
 
-type CAA_Record struct {
+type CAA struct {
 	Flag  uint8  `json:"flag"`
 	Tag   string `json:"tag"`
 	Value string `json:"value"`
