@@ -40,7 +40,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
-	zone := p.Redis.Load(zoneName)
+	zone := p.Redis.LoadZone(zoneName)
 	if zone == nil {
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
 	}
