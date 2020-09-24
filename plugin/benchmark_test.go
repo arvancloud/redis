@@ -1,4 +1,4 @@
-package redis
+package plugin
 
 import (
 	"fmt"
@@ -76,12 +76,15 @@ var testCasesMiss = []test.Case{
 
 func BenchmarkHit(b *testing.B) {
 	fmt.Println("benchmark test")
-	r := newRedisPlugin()
-	conn := r.Pool.Get()
+	plugin, err := newRedisPlugin()
+	if err != nil {
+		b.Fatal(err)
+	}
+	conn := plugin.Redis.Pool.Get()
 	defer conn.Close()
-	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix+"*"+r.keySuffix)
+	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, plugin.Redis.Key("*"))
 	for _, cmd := range benchmarkEntries {
-		err := r.save(zone, cmd[0], cmd[1])
+		err := plugin.Redis.Save(zone, cmd[0], cmd[1])
 		if err != nil {
 			fmt.Println("error in redis", err)
 		}
@@ -91,18 +94,21 @@ func BenchmarkHit(b *testing.B) {
 		j := rand.Intn(len(testCasesHit))
 		m := testCasesHit[j].Msg()
 		rec := dnstest.NewRecorder(&test.ResponseWriter{})
-		r.ServeDNS(ctxt, rec, m)
+		plugin.ServeDNS(ctxt, rec, m)
 	}
 }
 
 func BenchmarkMiss(b *testing.B) {
 	fmt.Println("benchmark test")
-	r := newRedisPlugin()
-	conn := r.Pool.Get()
+	plugin, err := newRedisPlugin()
+	if err != nil {
+		b.Fatal(err)
+	}
+	conn := plugin.Redis.Pool.Get()
 	defer conn.Close()
-	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix+"*"+r.keySuffix)
+	conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, plugin.Redis.Key("*"))
 	for _, cmd := range benchmarkEntries {
-		err := r.save(zone, cmd[0], cmd[1])
+		err := plugin.Redis.Save(zone, cmd[0], cmd[1])
 		if err != nil {
 			fmt.Println("error in redis", err)
 		}
@@ -112,6 +118,6 @@ func BenchmarkMiss(b *testing.B) {
 		j := rand.Intn(len(testCasesMiss))
 		m := testCasesMiss[j].Msg()
 		rec := dnstest.NewRecorder(&test.ResponseWriter{})
-		r.ServeDNS(ctxt, rec, m)
+		plugin.ServeDNS(ctxt, rec, m)
 	}
 }

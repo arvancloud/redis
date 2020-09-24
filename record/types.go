@@ -48,7 +48,7 @@ type ZoneRecords struct {
 }
 
 type A struct {
-	Ttl uint32 `json:"ttl,omitempty"`
+	Ttl int    `json:"ttl,omitempty"`
 	Ip  net.IP `json:"ip"`
 }
 
@@ -58,7 +58,7 @@ func (a A) Equal(b A) bool {
 }
 
 type AAAA struct {
-	Ttl uint32 `json:"ttl,omitempty"`
+	Ttl int    `json:"ttl,omitempty"`
 	Ip  net.IP `json:"ip"`
 }
 
@@ -68,7 +68,7 @@ func (a AAAA) Equal(b AAAA) bool {
 }
 
 type TXT struct {
-	Ttl  uint32 `json:"ttl,omitempty"`
+	Ttl  int `json:"ttl,omitempty"`
 	Text string `json:"text"`
 }
 
@@ -78,7 +78,7 @@ func (a TXT) Equal(b TXT) bool {
 }
 
 type CNAME struct {
-	Ttl  uint32 `json:"ttl,omitempty"`
+	Ttl  int `json:"ttl,omitempty"`
 	Host string `json:"host"`
 }
 
@@ -88,7 +88,7 @@ func (a CNAME) Equal(b CNAME) bool {
 }
 
 type NS struct {
-	Ttl  uint32 `json:"ttl,omitempty"`
+	Ttl  int `json:"ttl,omitempty"`
 	Host string `json:"host"`
 }
 
@@ -98,7 +98,7 @@ func (a NS) Equal(b NS) bool {
 }
 
 type MX struct {
-	Ttl        uint32 `json:"ttl,omitempty"`
+	Ttl        int `json:"ttl,omitempty"`
 	Host       string `json:"host"`
 	Preference uint16 `json:"preference"`
 }
@@ -109,7 +109,7 @@ func (a MX) Equal(b MX) bool {
 }
 
 type SRV struct {
-	Ttl      uint32 `json:"ttl,omitempty"`
+	Ttl      int `json:"ttl,omitempty"`
 	Priority uint16 `json:"priority"`
 	Weight   uint16 `json:"weight"`
 	Port     uint16 `json:"port"`
@@ -124,7 +124,7 @@ func (a SRV) Equal(b SRV) bool {
 
 // SOA RDATA (https://tools.ietf.org/html/rfc1035#section-3.3.13)
 type SOA struct {
-	Ttl     uint32 `json:"ttl,omitempty"`
+	Ttl     int `json:"ttl,omitempty"`
 	MName   string `json:"mname"`
 	RName   string `json:"rname"`
 	Serial  uint32 `json:"serial"`
@@ -142,7 +142,7 @@ func (a SOA) Equal(b SOA) bool {
 }
 
 type CAA struct {
-	Ttl   uint32 `json:"ttl,omitempty"`
+	Ttl   int `json:"ttl,omitempty"`
 	Flag  uint8  `json:"flag"`
 	Tag   string `json:"tag"`
 	Value string `json:"value"`

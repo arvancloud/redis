@@ -1,14 +1,13 @@
-package redis
+package plugin
 
 import (
 	"context"
 	"fmt"
-	"testing"
-
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/test"
-
 	"github.com/miekg/dns"
+	"github.com/rverst/coredns-redis"
+	"testing"
 )
 
 var zones = []string{
@@ -191,38 +190,35 @@ var testCases = [][]test.Case{
 	},
 }
 
-func newRedisPlugin() *Redis {
+const prefix, suffix = "test", "test"
+const ttl = 300
+
+func newRedisPlugin() (*Plugin, error) {
 	ctxt = context.TODO()
 
-	redis := new(Redis)
-	redis.keyPrefix = ""
-	redis.keySuffix = ""
-	redis.Ttl = 300
-	redis.redisAddress = "localhost:6379"
-	redis.redisPassword = ""
-	redis.Connect()
-	redis.LoadZones()
-	return redis
-	/*
-		return &Redis {
-			keyPrefix: "",
-			keySuffix:"",
-			redisc: client,
-			Ttl: 300,
-		}	redis := new(Redis)
-	*/
+	p := new(Plugin)
+	p.Redis = redis.New()
+	p.Redis.SetKeyPrefix(prefix)
+	p.Redis.SetKeySuffix(suffix)
+	p.Redis.SetDefaultTtl(ttl)
+	p.Redis.SetAddress("192.168.0.100:6379")
+	err := p.Redis.Connect()
+	return p, err
 }
 
 func TestAnswer(t *testing.T) {
 	fmt.Println("lookup test")
-	r := newRedisPlugin()
-	conn := r.Pool.Get()
+	plugin, err := newRedisPlugin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := plugin.Redis.Pool.Get()
 	defer conn.Close()
 
 	for i, zone := range zones {
-		conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, r.keyPrefix+zone+r.keySuffix)
+		conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, plugin.Redis.Key(zone))
 		for _, cmd := range lookupEntries[i] {
-			err := r.save(zone, cmd[0], cmd[1])
+			err := plugin.Redis.Save(zone, cmd[0], cmd[1])
 			if err != nil {
 				fmt.Println("error in redis", err)
 				t.Fail()
@@ -232,7 +228,7 @@ func TestAnswer(t *testing.T) {
 			m := tc.Msg()
 
 			rec := dnstest.NewRecorder(&test.ResponseWriter{})
-			r.ServeDNS(ctxt, rec, m)
+			plugin.ServeDNS(ctxt, rec, m)
 
 			resp := rec.Msg
 
