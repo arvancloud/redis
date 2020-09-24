@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/miekg/dns"
-	"github.com/rverst/coredns-redis/rtype"
+	"github.com/rverst/coredns-redis/record"
 	"math"
 	"strconv"
 	"strings"
@@ -56,7 +56,7 @@ func (redis *Redis) LoadZones() {
 	redis.Zones = zones
 }
 
-func (redis *Redis) A(name string, _ *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) A(name string, _ *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	for _, a := range record.A {
 		if a.Ip == nil {
 			continue
@@ -70,7 +70,7 @@ func (redis *Redis) A(name string, _ *rtype.Zone, record *rtype.Record) (answers
 	return
 }
 
-func (redis Redis) AAAA(name string, _ *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis Redis) AAAA(name string, _ *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	for _, aaaa := range record.AAAA {
 		if aaaa.Ip == nil {
 			continue
@@ -84,7 +84,7 @@ func (redis Redis) AAAA(name string, _ *rtype.Zone, record *rtype.Record) (answe
 	return
 }
 
-func (redis *Redis) CNAME(name string, _ *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) CNAME(name string, _ *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	for _, cname := range record.CNAME {
 		if len(cname.Host) == 0 {
 			continue
@@ -98,7 +98,7 @@ func (redis *Redis) CNAME(name string, _ *rtype.Zone, record *rtype.Record) (ans
 	return
 }
 
-func (redis *Redis) TXT(name string, _ *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) TXT(name string, _ *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	for _, txt := range record.TXT {
 		if len(txt.Text) == 0 {
 			continue
@@ -112,7 +112,7 @@ func (redis *Redis) TXT(name string, _ *rtype.Zone, record *rtype.Record) (answe
 	return
 }
 
-func (redis *Redis) NS(name string, z *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) NS(name string, z *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	for _, ns := range record.NS {
 		if len(ns.Host) == 0 {
 			continue
@@ -127,7 +127,7 @@ func (redis *Redis) NS(name string, z *rtype.Zone, record *rtype.Record) (answer
 	return
 }
 
-func (redis *Redis) MX(name string, z *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) MX(name string, z *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	for _, mx := range record.MX {
 		if len(mx.Host) == 0 {
 			continue
@@ -143,7 +143,7 @@ func (redis *Redis) MX(name string, z *rtype.Zone, record *rtype.Record) (answer
 	return
 }
 
-func (redis *Redis) SRV(name string, z *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) SRV(name string, z *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	for _, srv := range record.SRV {
 		if len(srv.Target) == 0 {
 			continue
@@ -161,7 +161,7 @@ func (redis *Redis) SRV(name string, z *rtype.Zone, record *rtype.Record) (answe
 	return
 }
 
-func (redis *Redis) SOA(name string, z *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) SOA(name string, z *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	r := new(dns.SOA)
 	// default value if no SOA record in backend
 	if record.SOA.MName == "" {
@@ -191,7 +191,7 @@ func (redis *Redis) SOA(name string, z *rtype.Zone, record *rtype.Record) (answe
 	return
 }
 
-func (redis *Redis) CAA(name string, _ *rtype.Zone, record *rtype.Record) (answers, extras []dns.RR) {
+func (redis *Redis) CAA(name string, _ *record.Zone, record *record.ZoneRecords) (answers, extras []dns.RR) {
 	if record == nil {
 		return
 	}
@@ -209,7 +209,7 @@ func (redis *Redis) CAA(name string, _ *rtype.Zone, record *rtype.Record) (answe
 	return
 }
 
-func (redis *Redis) AXFR(z *rtype.Zone) (records []dns.RR) {
+func (redis *Redis) AXFR(z *record.Zone) (records []dns.RR) {
 	//soa, _ := redis.SOA(z.Name, z, record)
 	soa := make([]dns.RR, 0)
 	answers := make([]dns.RR, 0, 10)
@@ -266,9 +266,9 @@ func (redis *Redis) AXFR(z *rtype.Zone) (records []dns.RR) {
 	return
 }
 
-func (redis *Redis) hosts(name string, z *rtype.Zone) []dns.RR {
+func (redis *Redis) hosts(name string, z *record.Zone) []dns.RR {
 	var (
-		record  *rtype.Record
+		record  *record.ZoneRecords
 		answers []dns.RR
 	)
 	location := redis.findLocation(name, z)
@@ -306,7 +306,7 @@ func (redis *Redis) ttl(ttl uint32) uint32 {
 	return defaultTtl
 }
 
-func (redis *Redis) findLocation(query string, z *rtype.Zone) string {
+func (redis *Redis) findLocation(query string, z *record.Zone) string {
 	var (
 		ok                                 bool
 		closestEncloser, sourceOfSynthesis string
@@ -340,7 +340,7 @@ func (redis *Redis) findLocation(query string, z *rtype.Zone) string {
 	return ""
 }
 
-func (redis *Redis) get(key string, z *rtype.Zone) *rtype.Record {
+func (redis *Redis) get(key string, z *record.Zone) *record.ZoneRecords {
 	var (
 		err   error
 		reply interface{}
@@ -368,7 +368,7 @@ func (redis *Redis) get(key string, z *rtype.Zone) *rtype.Record {
 	if err != nil {
 		return nil
 	}
-	r := new(rtype.Record)
+	r := new(record.ZoneRecords)
 	err = json.Unmarshal([]byte(val), r)
 	if err != nil {
 		fmt.Println("parse error : ", val, err)
@@ -377,12 +377,12 @@ func (redis *Redis) get(key string, z *rtype.Zone) *rtype.Record {
 	return r
 }
 
-func keyExists(key string, z *rtype.Zone) bool {
+func keyExists(key string, z *record.Zone) bool {
 	_, ok := z.Locations[key]
 	return ok
 }
 
-func keyMatches(key string, z *rtype.Zone) bool {
+func keyMatches(key string, z *record.Zone) bool {
 	for value := range z.Locations {
 		if strings.HasSuffix(value, key) {
 			return true
@@ -444,7 +444,7 @@ func (redis *Redis) save(zone string, subdomain string, value string) error {
 	return err
 }
 
-func (redis *Redis) load(zone string) *rtype.Zone {
+func (redis *Redis) load(zone string) *record.Zone {
 	var (
 		reply interface{}
 		err   error
@@ -462,15 +462,15 @@ func (redis *Redis) load(zone string) *rtype.Zone {
 	if err != nil {
 		return nil
 	}
-	z := new(rtype.Zone)
+	z := new(record.Zone)
 	z.Name = zone
 	vals, err = redisCon.Strings(reply, nil)
 	if err != nil {
 		return nil
 	}
-	z.Locations = make(map[string]struct{})
+	z.Locations = make(map[string][]record.DnsRecord)
 	for _, val := range vals {
-		z.Locations[val] = struct{}{}
+		z.Locations[val] = nil//struct{}{}
 	}
 
 	return z
@@ -480,7 +480,7 @@ func split255(s string) []string {
 	if len(s) < 255 {
 		return []string{s}
 	}
-	sx := []string{}
+	var sx []string
 	p, i := 0, 255
 	for {
 		if i <= len(s) {
