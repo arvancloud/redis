@@ -10,7 +10,46 @@ import (
 const prefix, suffix = "", ""
 const minTtl = 300
 
-func newRedis() *Redis{
+const (
+	testTtl    = 4242
+	testDomain = "example.net"
+	testSub1   = "www"
+	testSub2   = "subhost"
+	nsHost     = "ns1.example.org"
+	soaRname   = "hostmaster.example.org"
+	soaSerial  = 2006010201
+	soaRefresh = 3600
+	soaRetry   = 1800
+	soaExpire  = 10000
+	soaMinTtl  = minTtl
+	ip4        = "93.184.216.34"
+	ip6        = "2606:2800:220:1:248:1893:25c8:1946"
+	txt        = "Lamas, seekers, and great monkeys will always protect them."
+	cSub       = "superservice"
+	cHost      = "cname.example.org."
+	mxHost     = "mail.example.org."
+	mxPref     = 10
+	srvService  = "_autodiscover._tcp"
+	srvPrio     = 10
+	srvWeight   = 80
+	srvPort     = 443
+	caaFlag     = 0
+	caaTag      = "issue"
+	caaValue    = "letsencrypt.org"
+)
+
+var (
+	recA     = record.A{Ttl: testTtl, Ip: net.ParseIP(ip4)}
+	recAAAA  = record.AAAA{Ttl: testTtl, Ip: net.ParseIP(ip6)}
+	recTXT   = record.TXT{Ttl: testTtl, Text: txt}
+	recCNAME = record.CNAME{Ttl: testTtl, Host: cHost}
+	recNS    = record.NS{Ttl: testTtl, Host: nsHost}
+	recMX    = record.MX{Ttl: testTtl, Host: mxHost, Preference: mxPref}
+	recSRV   = record.SRV{Ttl: testTtl, Priority: srvPrio, Weight: srvWeight, Port: srvPort, Target: mxHost}
+	recCAA   = record.CAA{Ttl: testTtl, Flag: caaFlag, Tag: caaTag, Value: caaValue}
+)
+
+func newRedis() *Redis {
 
 	r := New()
 	r.SetKeyPrefix(prefix)
@@ -23,37 +62,31 @@ func newRedis() *Redis{
 	return r
 }
 
-
 func TestRedis_SaveZone(t *testing.T) {
 
-	z := record.NewZone("example.de", record.SOA{
-		Ttl:     1234,
-		MName:   "ns1.example.net",
-		RName:   "hostmaster.example.net",
-		Serial:  202009241,
-		Refresh: 3600,
-		Retry:   1800,
-		Expire:  10000,
-		MinTtl:  40,
+	z := record.NewZone(testDomain, record.SOA{
+		Ttl:     testTtl,
+		MName:   nsHost,
+		RName:   soaRname,
+		Serial:  soaSerial,
+		Refresh: soaRefresh,
+		Retry:   soaRetry,
+		Expire:  soaExpire,
+		MinTtl:  soaMinTtl,
 	})
 
-	z.Add("@", record.A{
-		Ttl: 42,
-		Ip:  net.ParseIP("1.2.3.4"),
-	})
-	z.AddA("@", record.A{
-		Ttl: 23,
-		Ip:  net.ParseIP("2.3.4.5"),
-	})
+	z.Add("@", recA)
+	z.Add("@", recAAAA)
+	z.Add("@", recTXT)
+	z.Add("@", recMX)
+	z.Add("@", recCAA)
+	z.Add(cSub, recCNAME)
+	z.Add(srvService, recSRV)
+	z.Add(testSub2, recNS)
 
-	z.Add("sub", record.A{
-		Ttl: 43,
-		Ip:  net.ParseIP("1.2.3.4"),
-	})
-	z.AddA("sub", record.A{
-		Ttl: 24,
-		Ip:  net.ParseIP("2.3.4.5"),
-	})
+	z.Add(testSub1, recA)
+	z.Add(testSub1, recAAAA)
+
 	tests := []struct {
 		name    string
 		zone    record.Zone

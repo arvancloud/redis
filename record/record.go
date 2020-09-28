@@ -3,7 +3,7 @@ package record
 import (
 	"fmt"
 	"github.com/miekg/dns"
-	"net"
+	"log"
 )
 
 type Type string
@@ -21,23 +21,33 @@ type Record interface {
 	TTL() (uint32, bool)
 }
 
+// Records holds the location records for a zone
+type Records struct {
+	// SOA record for the zone, mandatory but only allowed in '@'
+	SOA   *SOA     `json:"SOA,omitempty"`
+	A     []A     `json:"A,omitempty"`
+	AAAA  []AAAA  `json:"AAAA,omitempty"`
+	TXT   []TXT   `json:"TXT,omitempty"`
+	CNAME []CNAME `json:"CNAME,omitempty"`
+	NS    []NS    `json:"NS,omitempty"`
+	MX    []MX    `json:"MX,omitempty"`
+	SRV   []SRV   `json:"SRV,omitempty"`
+	CAA   []CAA   `json:"CAA,omitempty"`
+}
+
 // Zone represents a DNS zone
 type Zone struct {
 	Name      string
 	Locations map[string]Records
 }
 
-// NewZone return a new, empty zone record with a SOA resource record
+// NewZone return a new, empty zone with a SOA resource record
 func NewZone(name string, soa SOA) *Zone {
-	l := make(map[string]Records)
-	l["@"] = Records{
-		SOA: soa,
-	}
-
-	return &Zone{
+	z := Zone{
 		Name: dns.Fqdn(name),
-		Locations: l,
 	}
+	z.addSoa(soa)
+	return &z
 }
 
 // Equal determines if the zones are equal
@@ -53,23 +63,42 @@ func (z Zone) SOA() (*SOA, error) {
 	if !ok {
 		return nil, fmt.Errorf("no SOA record found")
 	}
-	return &r.SOA, nil
+	return r.SOA, nil
 }
 
-func (z Zone) Add(loc string, record Record) {
-
+func (z *Zone) Add(loc string, record Record) {
 	switch record.(type) {
+	case SOA:
+		z.addSoa(record.(SOA))
 	case A:
-		z.AddA(loc, record.(A))
+		z.addA4(loc, record.(A))
+	case AAAA:
+		z.addA6(loc, record.(AAAA))
+	case TXT:
+		z.addTxt(loc, record.(TXT))
+	case CNAME:
+		z.addCname(loc, record.(CNAME))
+	case MX:
+		z.addMx(loc, record.(MX))
+	case NS:
+		z.addNs(loc, record.(NS))
+	case SRV:
+		z.addSrv(loc, record.(SRV))
+	case CAA:
+		z.addCaa(loc, record.(CAA))
+	default:
+		log.Fatal(fmt.Errorf("record type: %T is not supported", record))
 	}
 }
 
-func (z Zone) AddA(loc string, rec A) {
-	_, ok := z.Locations[loc]
-	if !ok {
-		z.Locations[loc] = Records{}
-	}
-	r := z.Locations[loc]
+func (z *Zone) addSoa(rec SOA) {
+	r := z.getOrAddLocation("@")
+	r.SOA = &rec
+	z.Locations["@"] = r
+}
+
+func (z *Zone) addA4(loc string, rec A) {
+	r := z.getOrAddLocation(loc)
 	if r.A == nil {
 		r.A = make([]A, 1)
 		r.A[0] = rec
@@ -79,185 +108,91 @@ func (z Zone) AddA(loc string, rec A) {
 	z.Locations[loc] = r
 }
 
-// Records holds the location records for a zone
-type Records struct {
-	// SOA record for the zone, mandatory but only allowed in '@'
-	SOA   SOA     `json:"soa,omitempty"`
-	A     []A     `json:"a,omitempty"`
-	AAAA  []AAAA  `json:"aaaa,omitempty"`
-	TXT   []TXT   `json:"txt,omitempty"`
-	CNAME []CNAME `json:"cname,omitempty"`
-	NS    []NS    `json:"ns,omitempty"`
-	MX    []MX    `json:"mx,omitempty"`
-	SRV   []SRV   `json:"srv,omitempty"`
-	CAA   []CAA   `json:"caa,omitempty"`
-}
-
-type A struct {
-	Ttl int    `json:"ttl,omitempty"`
-	Ip  net.IP `json:"ip"`
-}
-
-// Equal reports if the records are equal
-func (a A) Equal(b A) bool {
-	return a.Ttl == b.Ttl && a.Ip.Equal(b.Ip)
-}
-
-func (a A) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) addA6(loc string, rec AAAA) {
+	r := z.getOrAddLocation(loc)
+	if r.AAAA == nil {
+		r.AAAA = make([]AAAA, 1)
+		r.AAAA[0] = rec
+	} else {
+		r.AAAA = append(r.AAAA, rec)
 	}
-	return 0, false
+	z.Locations[loc] = r
 }
 
-type AAAA struct {
-	Ttl int    `json:"ttl"`
-	Ip  net.IP `json:"ip"`
-}
-
-// Equal determines if the record is equal
-func (a AAAA) Equal(b AAAA) bool {
-	return a.Ttl == b.Ttl && a.Ip.Equal(b.Ip)
-}
-
-func (a AAAA) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) addTxt(loc string, rec TXT) {
+	r := z.getOrAddLocation(loc)
+	if r.TXT == nil {
+		r.TXT = make([]TXT, 1)
+		r.TXT[0] = rec
+	} else {
+		r.TXT = append(r.TXT, rec)
 	}
-	return 0, false
+	z.Locations[loc] = r
 }
 
-type TXT struct {
-	Ttl  int    `json:"ttl"`
-	Text string `json:"text"`
-}
-
-// Equal determines if the record is equal
-func (a TXT) Equal(b TXT) bool {
-	return a.Ttl == b.Ttl && a.Text == b.Text
-}
-
-func (a TXT) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) addCname(loc string, rec CNAME) {
+	r := z.getOrAddLocation(loc)
+	if r.CNAME == nil {
+		r.CNAME = make([]CNAME, 1)
+		r.CNAME[0] = rec
+	} else {
+		r.CNAME = append(r.CNAME, rec)
 	}
-	return 0, false
+	z.Locations[loc] = r
 }
 
-type CNAME struct {
-	Ttl  int    `json:"ttl"`
-	Host string `json:"host"`
-}
-
-// Equal determines if the record is equal
-func (a CNAME) Equal(b CNAME) bool {
-	return a.Ttl == b.Ttl && a.Host == b.Host
-}
-
-func (a CNAME) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) addMx(loc string, rec MX) {
+	r := z.getOrAddLocation(loc)
+	if r.MX == nil {
+		r.MX = make([]MX, 1)
+		r.MX[0] = rec
+	} else {
+		r.MX = append(r.MX, rec)
 	}
-	return 0, false
+	z.Locations[loc] = r
 }
 
-type NS struct {
-	Ttl  int    `json:"ttl"`
-	Host string `json:"host"`
-}
-
-// Equal determines if the record is equal
-func (a NS) Equal(b NS) bool {
-	return a.Ttl == b.Ttl && a.Host == b.Host
-}
-
-func (a NS) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) addNs(loc string, rec NS) {
+	r := z.getOrAddLocation(loc)
+	if r.NS == nil {
+		r.NS = make([]NS, 1)
+		r.NS[0] = rec
+	} else {
+		r.NS = append(r.NS, rec)
 	}
-	return 0, false
+	z.Locations[loc] = r
 }
 
-type MX struct {
-	Ttl        int    `json:"ttl"`
-	Host       string `json:"host"`
-	Preference uint16 `json:"preference"`
-}
-
-// Equal determines if the record is equal
-func (a MX) Equal(b MX) bool {
-	return a.Ttl == b.Ttl && a.Host == b.Host && a.Preference == b.Preference
-}
-
-func (a MX) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) addSrv(loc string, rec SRV) {
+	r := z.getOrAddLocation(loc)
+	if r.SRV == nil {
+		r.SRV = make([]SRV, 1)
+		r.SRV[0] = rec
+	} else {
+		r.SRV = append(r.SRV, rec)
 	}
-	return 0, false
+	z.Locations[loc] = r
 }
 
-type SRV struct {
-	Ttl      int    `json:"ttl"`
-	Priority uint16 `json:"priority"`
-	Weight   uint16 `json:"weight"`
-	Port     uint16 `json:"port"`
-	Target   string `json:"target"`
-}
-
-// Equal determines if the record is equal
-func (a SRV) Equal(b SRV) bool {
-	return a.Ttl == b.Ttl && a.Priority == b.Priority && a.Weight == b.Weight &&
-		a.Port == b.Port && a.Target == b.Target
-}
-
-func (a SRV) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) addCaa(loc string, rec CAA) {
+	r := z.getOrAddLocation(loc)
+	if r.CAA == nil {
+		r.CAA = make([]CAA, 1)
+		r.CAA[0] = rec
+	} else {
+		r.CAA = append(r.CAA, rec)
 	}
-	return 0, false
+	z.Locations[loc] = r
 }
 
-// SOA RDATA (https://tools.ietf.org/html/rfc1035#section-3.3.13)
-type SOA struct {
-	Ttl     int    `json:"ttl"`
-	MName   string `json:"mname"`
-	RName   string `json:"rname"`
-	Serial  uint32 `json:"serial"`
-	Refresh uint32 `json:"refresh"`
-	Retry   uint32 `json:"retry"`
-	Expire  uint32 `json:"expire"`
-	MinTtl  uint32 `json:"min_ttl"`
-}
-
-func (a SOA) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+func (z *Zone) getOrAddLocation(loc string) Records {
+	if z.Locations == nil {
+		z.Locations = make(map[string]Records)
 	}
-	return 0, false
-}
-
-// Equal determines if the record is equal
-func (a SOA) Equal(b SOA) bool {
-	return a.Ttl == b.Ttl && a.MName == b.MName && a.RName == b.RName &&
-		a.Serial == b.Serial && a.Refresh == b.Refresh && a.Retry == b.Retry &&
-		a.Expire == b.Expire && a.MinTtl == b.MinTtl
-}
-
-type CAA struct {
-	Ttl   int    `json:"ttl"`
-	Flag  uint8  `json:"flag"`
-	Tag   string `json:"tag"`
-	Value string `json:"value"`
-}
-
-func (a CAA) TTL() (uint32, bool) {
-	if a.Ttl >= 0 {
-		return uint32(a.Ttl), true
+	_, ok := z.Locations[loc]
+	if !ok {
+		z.Locations[loc] = Records{}
 	}
-	return 0, false
-}
-
-// Equal determines if the record is equal
-func (a CAA) Equal(b CAA) bool {
-	return a.Ttl == b.Ttl && a.Flag == b.Flag && a.Tag == b.Tag && a.Value == b.Value
+	r := z.Locations[loc]
+	return r
 }

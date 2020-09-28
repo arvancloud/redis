@@ -2,196 +2,53 @@ package plugin
 
 import (
 	"context"
-	"fmt"
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/test"
 	"github.com/miekg/dns"
 	"github.com/rverst/coredns-redis"
+	"github.com/rverst/coredns-redis/record"
+	"net"
 	"testing"
 )
 
-var zones = []string{
-	"example.com.", "example.net.",
+const (
+	prefix, suffix = "lookup-test_", "_lookup-test"
+	defaultTtl     = 500
+	testTtl        = 4242
+	txt            = "Lamas, seekers, and great monkeys will always protect them."
+	wcTxt          = "This is a wildcard TXT record"
+)
+
+var zones = []string{"example.net", "example.org"}
+
+type testRecord struct {
+	l string
+	r record.Record
 }
 
-var lookupEntries = [][][]string{
-	{
-		{"@",
-			"{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.com.\",\"ns\":\"ns1.example.com.\",\"refresh\":44,\"retry\":55,\"expire\":66}}",
-		},
-		{"x",
-			"{\"a\":[{\"ttl\":300, \"ip\":\"1.2.3.4\"},{\"ttl\":300, \"ip\":\"5.6.7.8\"}]," +
-				"\"aaaa\":[{\"ttl\":300, \"ip\":\"::1\"}]," +
-				"\"txt\":[{\"ttl\":300, \"text\":\"foo\"},{\"ttl\":300, \"text\":\"bar\"}]," +
-				"\"ns\":[{\"ttl\":300, \"host\":\"ns1.example.com.\"},{\"ttl\":300, \"host\":\"ns2.example.com.\"}]," +
-				"\"mx\":[{\"ttl\":300, \"host\":\"mx1.example.com.\", \"preference\":10},{\"ttl\":300, \"host\":\"mx2.example.com.\", \"preference\":10}]}",
-		},
-		{"y",
-			"{\"cname\":[{\"ttl\":300, \"host\":\"x.example.com.\"}]}",
-		},
-		{"ns1",
-			"{\"a\":[{\"ttl\":300, \"ip\":\"2.2.2.2\"}]}",
-		},
-		{"ns2",
-			"{\"a\":[{\"ttl\":300, \"ip\":\"3.3.3.3\"}]}",
-		},
-		{"_sip._tcp",
-			"{\"srv\":[{\"ttl\":300, \"target\":\"sip.example.com.\",\"port\":555,\"priority\":10,\"weight\":100}]}",
-		},
-		{"sip",
-			"{\"a\":[{\"ttl\":300, \"ip\":\"7.7.7.7\"}]," +
-				"\"aaaa\":[{\"ttl\":300, \"ip\":\"::1\"}]}",
-		},
-	},
-	{
-		{"@",
-			"{\"soa\":{\"ttl\":300, \"minttl\":100, \"mbox\":\"hostmaster.example.net.\",\"ns\":\"ns1.example.net.\",\"refresh\":44,\"retry\":55,\"expire\":66}," +
-				"\"ns\":[{\"ttl\":300, \"host\":\"ns1.example.net.\"},{\"ttl\":300, \"host\":\"ns2.example.net.\"}]}",
-		},
-		{"sub.*",
-			"{\"txt\":[{\"ttl\":300, \"text\":\"this is not a wildcard\"}]}",
-		},
-		{"host1",
-			"{\"a\":[{\"ttl\":300, \"ip\":\"5.5.5.5\"}]}",
-		},
-		{"subdel",
-			"{\"ns\":[{\"ttl\":300, \"host\":\"ns1.subdel.example.net.\"},{\"ttl\":300, \"host\":\"ns2.subdel.example.net.\"}]}",
-		},
-		{"*",
-			"{\"txt\":[{\"ttl\":300, \"text\":\"this is a wildcard\"}]," +
-				"\"mx\":[{\"ttl\":300, \"host\":\"host1.example.net.\",\"preference\": 10}]}",
-		},
-		{"_ssh._tcp.host1",
-			"{\"srv\":[{\"ttl\":300, \"target\":\"tcp.example.com.\",\"port\":123,\"priority\":10,\"weight\":100}]}",
-		},
-		{"_ssh._tcp.host2",
-			"{\"srv\":[{\"ttl\":300, \"target\":\"tcp.example.com.\",\"port\":123,\"priority\":10,\"weight\":100}]}",
-		},
-	},
+var testRecords = []testRecord{
+	{"@", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.34")}},
+	{"www", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.34")}},
+	{"@", record.AAAA{Ttl: testTtl, Ip: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946")}},
+	{"www", record.AAAA{Ttl: testTtl, Ip: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946")}},
+	{"@", record.TXT{Ttl: testTtl, Text: txt}},
+	{"@", record.NS{Ttl: testTtl, Host: "ns1.example.org."}},
+	{"@", record.NS{Ttl: testTtl, Host: "ns2.example.org."}},
+	{"@", record.MX{Ttl: testTtl, Host: "mail.example.org.", Preference: 10}},
+	{"wwx", record.CNAME{Ttl: testTtl, Host: "www.example.org."}},
+	{"_autodiscover._tcp", record.SRV{Ttl: testTtl, Priority: 10, Weight: 50, Port: 443, Target: "mail.example.org."}},
+	{"ns1", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.36")}},
+	{"ns2", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.37")}},
+	{"mail", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.38")}},
+	{"mail", record.AAAA{Ttl: testTtl, Ip: net.ParseIP("2606:2800:220:1:248:1893:25c8:1947")}},
+	{"@", record.CAA{Ttl: testTtl, Flag: 0, Tag: "issue", Value: "letsencrypt.org"}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.39")}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.40")}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.41")}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.42")}},
+	{"*", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.43")}},
+	{"*", record.TXT{Ttl: testTtl, Text: wcTxt}},
 }
-
-var testCases = [][]test.Case{
-	// basic tests
-	{
-		// A Test
-		{
-			Qname: "x.example.com.", Qtype: dns.TypeA,
-			Answer: []dns.RR{
-				test.A("x.example.com. 300 IN A 1.2.3.4"),
-				test.A("x.example.com. 300 IN A 5.6.7.8"),
-			},
-		},
-		// AAAA Test
-		{
-			Qname: "x.example.com.", Qtype: dns.TypeAAAA,
-			Answer: []dns.RR{
-				test.AAAA("x.example.com. 300 IN AAAA ::1"),
-			},
-		},
-		// TXT Test
-		{
-			Qname: "x.example.com.", Qtype: dns.TypeTXT,
-			Answer: []dns.RR{
-				test.TXT("x.example.com. 300 IN TXT bar"),
-				test.TXT("x.example.com. 300 IN TXT foo"),
-			},
-		},
-		// CNAME Test
-		{
-			Qname: "y.example.com.", Qtype: dns.TypeCNAME,
-			Answer: []dns.RR{
-				test.CNAME("y.example.com. 300 IN CNAME x.example.com."),
-			},
-		},
-		// NS Test
-		{
-			Qname: "x.example.com.", Qtype: dns.TypeNS,
-			Answer: []dns.RR{
-				test.NS("x.example.com. 300 IN NS ns1.example.com."),
-				test.NS("x.example.com. 300 IN NS ns2.example.com."),
-			},
-			Extra: []dns.RR{
-				test.A("ns1.example.com. 300 IN A 2.2.2.2"),
-				test.A("ns2.example.com. 300 IN A 3.3.3.3"),
-			},
-		},
-		// MX Test
-		{
-			Qname: "x.example.com.", Qtype: dns.TypeMX,
-			Answer: []dns.RR{
-				test.MX("x.example.com. 300 IN MX 10 mx1.example.com."),
-				test.MX("x.example.com. 300 IN MX 10 mx2.example.com."),
-			},
-		},
-		// SRV Test
-		{
-			Qname: "_sip._tcp.example.com.", Qtype: dns.TypeSRV,
-			Answer: []dns.RR{
-				test.SRV("_sip._tcp.example.com. 300 IN SRV 10 100 555 sip.example.com."),
-			},
-			Extra: []dns.RR{
-				test.A("sip.example.com. 300 IN A 7.7.7.7"),
-				test.AAAA("sip.example.com 300 IN AAAA ::1"),
-			},
-		},
-		// NXDOMAIN Test
-		{
-			Qname: "notexists.example.com.", Qtype: dns.TypeA,
-			Rcode: dns.RcodeNameError,
-		},
-		// SOA Test
-		{
-			Qname: "example.com.", Qtype: dns.TypeSOA,
-			Answer: []dns.RR{
-				test.SOA("example.com. 300 IN SOA ns1.example.com. hostmaster.example.com. 1460498836 44 55 66 100"),
-			},
-		},
-	},
-	// Wildcard Tests
-	{
-		{
-			Qname: "host3.example.net.", Qtype: dns.TypeMX,
-			Answer: []dns.RR{
-				test.MX("host3.example.net. 300 IN MX 10 host1.example.net."),
-			},
-			Extra: []dns.RR{
-				test.A("host1.example.net. 300 IN A 5.5.5.5"),
-			},
-		},
-		{
-			Qname: "host3.example.net.", Qtype: dns.TypeA,
-		},
-		{
-			Qname: "foo.bar.example.net.", Qtype: dns.TypeTXT,
-			Answer: []dns.RR{
-				test.TXT("foo.bar.example.net. 300 IN TXT \"this is a wildcard\""),
-			},
-		},
-		{
-			Qname: "host1.example.net.", Qtype: dns.TypeMX,
-		},
-		{
-			Qname: "sub.*.example.net.", Qtype: dns.TypeMX,
-		},
-		{
-			Qname: "host.subdel.example.net.", Qtype: dns.TypeA,
-			Rcode: dns.RcodeNameError,
-		},
-		{
-			Qname: "ghost.*.example.net.", Qtype: dns.TypeMX,
-			Rcode: dns.RcodeNameError,
-		},
-		{
-			Qname: "f.h.g.f.t.r.e.example.net.", Qtype: dns.TypeTXT,
-			Answer: []dns.RR{
-				test.TXT("f.h.g.f.t.r.e.example.net. 300 IN TXT \"this is a wildcard\""),
-			},
-		},
-	},
-}
-
-const prefix, suffix = "test", "test"
-const ttl = 300
 
 func newRedisPlugin() (*Plugin, error) {
 	ctxt = context.TODO()
@@ -200,48 +57,130 @@ func newRedisPlugin() (*Plugin, error) {
 	p.Redis = redis.New()
 	p.Redis.SetKeyPrefix(prefix)
 	p.Redis.SetKeySuffix(suffix)
-	p.Redis.SetDefaultTtl(ttl)
+	p.Redis.SetDefaultTtl(defaultTtl)
 	p.Redis.SetAddress("192.168.0.100:6379")
 	err := p.Redis.Connect()
 	return p, err
 }
 
-func TestAnswer(t *testing.T) {
-	fmt.Println("lookup test")
-	plugin, err := newRedisPlugin()
+func TestPlugin_Lookup(t *testing.T) {
+
+	plug, err := newRedisPlugin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn := plugin.Redis.Pool.Get()
-	defer conn.Close()
 
-	for i, zone := range zones {
-		conn.Do("EVAL", "return redis.call('del', unpack(redis.call('keys', ARGV[1])))", 0, plugin.Redis.Key(zone))
-		for _, cmd := range lookupEntries[i] {
-			err := plugin.Redis.Save(zone, cmd[0], cmd[1])
-			if err != nil {
-				fmt.Println("error in redis", err)
-				t.Fail()
-			}
+	for _, z := range zones {
+		zone := record.NewZone(z, record.SOA{
+			Ttl:     testTtl,
+			MName:   "ns1." + z + ".",
+			RName:   "hostmaster." + z,
+			Serial:  2006010201,
+			Refresh: 3600,
+			Retry:   1800,
+			Expire:  10000,
+			MinTtl:  300,
+		})
+
+		for _, tr := range testRecords {
+			zone.Add(tr.l, tr.r)
 		}
-		for _, tc := range testCases[i] {
-			m := tc.Msg()
 
-			rec := dnstest.NewRecorder(&test.ResponseWriter{})
-			plugin.ServeDNS(ctxt, rec, m)
+		err := plug.Redis.SaveZone(*zone)
+		if err != nil {
+			t.Error(err)
+		}
+	}
 
-			resp := rec.Msg
+	tests := []struct {
+		name string
+		tc   test.Case
+	}{
+		{name: "example.net. IN SOA", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeSOA,
+			Answer: []dns.RR{test.SOA("example.net. 4242 IN SOA ns1.example.net. hostmaster.example.net 2006010201 3600 1800 10000 300")},
+		}},
+		{name: "example.net. IN A", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeA,
+			Answer: []dns.RR{test.A("example.net. 4242 IN A 93.184.216.34")},
+		}},
+		{name: "www.example.net. IN A", tc: test.Case{Qname: "www.example.net.", Qtype: dns.TypeA,
+			Answer: []dns.RR{test.A("www.example.net. 4242 IN A 93.184.216.34")},
+		}},
+		{name: "example.net. IN AAAA", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeAAAA,
+			Answer: []dns.RR{test.AAAA("example.net. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1946")},
+		}},
+		{name: "www.example.net. IN AAAA", tc: test.Case{Qname: "www.example.net.", Qtype: dns.TypeAAAA,
+			Answer: []dns.RR{test.AAAA("www.example.net. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1946")},
+		}},
+		{name: "example.net. IN TXT", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeTXT,
+			Answer: []dns.RR{test.TXT("example.net. 4242 IN TXT \"" + txt + "\"")},
+		}},
+		{name: "wwx.example.net. IN CNAME", tc: test.Case{Qname: "wwx.example.net.", Qtype: dns.TypeCNAME,
+			Answer: []dns.RR{test.CNAME("wwx.example.net. 4242 IN CNAME www.example.org.")},
+		}},
+		{name: "example.net. IN NS", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeNS,
+			Answer: []dns.RR{test.NS("example.net. 4242 IN NS ns1.example.org."),
+				test.NS("example.net. 4242 IN NS ns2.example.org.")},
+			Extra: []dns.RR{test.A("ns1.example.org. 4242 IN A 93.184.216.36"),
+				test.A("ns2.example.org. 4242 IN A 93.184.216.37")},
+		}},
+		{name: "example.net. IN MX", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeMX,
+			Answer: []dns.RR{test.MX("example.net. 4242 IN MX 10 mail.example.org. ")},
+			Extra: []dns.RR{test.A("mail.example.org. 4242 IN A 93.184.216.38"),
+				test.AAAA("mail.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1947")},
+		}},
+		{name: "_autodiscover._tcp.example.net. IN SRV", tc: test.Case{Qname: "_autodiscover._tcp.example.net.", Qtype: dns.TypeSRV,
+			Answer: []dns.RR{test.SRV("_autodiscover._tcp.example.net. 4242 IN SRV 10 50 443 mail.example.org. ")},
+			Extra: []dns.RR{test.A("mail.example.org. 4242 IN A 93.184.216.38"),
+				test.AAAA("mail.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1947")},
+		}},
+		{name: "example.net. IN CAA", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeCAA,
+			Answer: []dns.RR{&dns.CAA{
+				Hdr:  dns.RR_Header{Name: "example.net.", Rrtype: dns.TypeCAA},
+				Flag: 0, Tag: "issue", Value: "letsencrypt.org",
+			}},
+		}},
+		{name: "lb.example.net. IN A", tc: test.Case{Qname: "lb.example.net.", Qtype: dns.TypeA,
+			Answer: []dns.RR{test.A("lb.example.net. 4242 IN A 93.184.216.39"),
+				test.A("lb.example.net. 4242 IN A 93.184.216.40"),
+				test.A("lb.example.net. 4242 IN A 93.184.216.41"),
+				test.A("lb.example.net. 4242 IN A 93.184.216.42")},
+		}},
+		{name: "wildcard wc1.example.net. IN A", tc: test.Case{Qname: "wc1.example.net.", Qtype: dns.TypeA,
+			Answer: []dns.RR{test.A("wc1.example.net. 4242 IN A 93.184.216.43")},
+		}},
+		{name: "wildcard wc1.example.net. IN TXT", tc: test.Case{Qname: "wc1.example.net.", Qtype: dns.TypeTXT,
+			Answer: []dns.RR{test.TXT("wc1.example.net. 4242 IN TXT \"" + wcTxt + "\"")},
+		}},
+		{name: "wildcard a.b.c.d.example.net. IN A", tc: test.Case{Qname: "a.b.c.d.example.net.", Qtype: dns.TypeA,
+			Answer: []dns.RR{test.A("a.b.c.d.example.net. 4242 IN A 93.184.216.43")},
+		}},
+		{name: "wildcard x.y.z.example.net. IN TXT", tc: test.Case{Qname: "x.y.z.example.net.", Qtype: dns.TypeTXT,
+			Answer: []dns.RR{test.TXT("x.y.z.example.net. 4242 IN TXT \"" + wcTxt + "\"")},
+		}},
+		{name: "not existing not.*.example.net. IN A", tc: test.Case{Qname: "not.*.example.net.", Qtype: dns.TypeA,
+			Rcode: dns.RcodeNameError}},
+	}
 
-			// TODO(arash): this shouldn't happen, check plugin's empty response
-			if resp == nil {
-				resp = new(dns.Msg)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			m := tt.tc.Msg()
+			recorder := dnstest.NewRecorder(&test.ResponseWriter{})
+			_, _ = plug.ServeDNS(ctxt, recorder, m)
+
+			res := recorder.Msg
+			// todo: FIX, should not happen
+			if res == nil {
+				res = new(dns.Msg)
 			}
-			err := test.SortAndCheck(resp, tc)
+
+			err := test.SortAndCheck(res, tt.tc)
 			if err != nil {
 				t.Error(err)
 			}
-		}
+		})
 	}
+
 }
 
 var ctxt context.Context

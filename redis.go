@@ -3,6 +3,7 @@ package redis
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 	"github.com/rverst/coredns-redis/record"
@@ -75,53 +76,6 @@ func (redis *Redis) ErrorResponse(state request.Request, zone string, rcode int,
 	return dns.RcodeSuccess, err
 }
 
-func (redis *Redis) LoadZones(name string) ([]string, error) {
-	var (
-		reply interface{}
-		err   error
-		zones []string
-	)
-
-	query := reduceZoneName(name)
-	if query == "" {
-		query = name
-	}
-
-	conn := redis.Pool.Get()
-	defer conn.Close()
-
-	reply, err = conn.Do("KEYS", redis.keyPrefix+"*"+query+redis.keySuffix)
-	zones, err = redisCon.Strings(reply, err)
-	if err != nil {
-		return nil, err
-	}
-
-	for i, _ := range zones {
-		zones[i] = strings.TrimPrefix(zones[i], redis.keyPrefix)
-		zones[i] = strings.TrimSuffix(zones[i], redis.keySuffix)
-	}
-	return zones, nil
-}
-
-// reduceZoneName strips the zone down to top- and second-level
-// so we can query the subset from redis. This should give
-// no problems unless we want to run a root dns
-func reduceZoneName(name string) string {
-	name = dns.Fqdn(name)
-	split := strings.Split(name[:len(name)-1], ".")
-	if len(split) == 0 {
-		return ""
-	}
-	x := len(split) - 2
-	if x > 0 {
-		name = ""
-		for ; x < len(split); x++ {
-			name += split[x] + "."
-		}
-	}
-	return name
-}
-
 func (redis *Redis) A(name string, _ *record.Zone, record *record.Records) (answers, extras []dns.RR) {
 	for _, a := range record.A {
 		if a.Ip == nil {
@@ -178,7 +132,7 @@ func (redis *Redis) TXT(name string, _ *record.Zone, record *record.Records) (an
 	return
 }
 
-func (redis *Redis) NS(name string, z *record.Zone, record *record.Records) (answers, extras []dns.RR) {
+func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
 	for _, ns := range record.NS {
 		if len(ns.Host) == 0 {
 			continue
@@ -188,12 +142,12 @@ func (redis *Redis) NS(name string, z *record.Zone, record *record.Records) (ans
 			Class: dns.ClassINET, Ttl: redis.ttl(ns.Ttl)}
 		r.Ns = ns.Host
 		answers = append(answers, r)
-		extras = append(extras, redis.hosts(ns.Host, z)...)
+		extras = append(extras, redis.getExtras(ns.Host, z, zones)...)
 	}
 	return
 }
 
-func (redis *Redis) MX(name string, z *record.Zone, record *record.Records) (answers, extras []dns.RR) {
+func (redis *Redis) MX(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
 	for _, mx := range record.MX {
 		if len(mx.Host) == 0 {
 			continue
@@ -204,12 +158,12 @@ func (redis *Redis) MX(name string, z *record.Zone, record *record.Records) (ans
 		r.Mx = mx.Host
 		r.Preference = mx.Preference
 		answers = append(answers, r)
-		extras = append(extras, redis.hosts(mx.Host, z)...)
+		extras = append(extras, redis.getExtras(mx.Host, z, zones)...)
 	}
 	return
 }
 
-func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records) (answers, extras []dns.RR) {
+func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
 	for _, srv := range record.SRV {
 		if len(srv.Target) == 0 {
 			continue
@@ -222,7 +176,7 @@ func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records) (an
 		r.Port = srv.Port
 		r.Priority = srv.Priority
 		answers = append(answers, r)
-		extras = append(extras, redis.hosts(srv.Target, z)...)
+		extras = append(extras, redis.getExtras(srv.Target, z, zones)...)
 	}
 	return
 }
@@ -264,7 +218,7 @@ func (redis *Redis) CAA(name string, _ *record.Zone, record *record.Records) (an
 	return
 }
 
-func (redis *Redis) AXFR(z *record.Zone) (records []dns.RR) {
+func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 	//soa, _ := redis.SOA(z.Name, z, record)
 	soa := make([]dns.RR, 0)
 	answers := make([]dns.RR, 0, 10)
@@ -298,11 +252,11 @@ func (redis *Redis) AXFR(z *record.Zone) (records []dns.RR) {
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
-			as, xs = redis.MX(fqdnKey, z, zoneRecords)
+			as, xs = redis.MX(fqdnKey, z, zoneRecords, zones)
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
-			as, xs = redis.SRV(fqdnKey, z, zoneRecords)
+			as, xs = redis.SRV(fqdnKey, z, zoneRecords, zones)
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
@@ -321,16 +275,35 @@ func (redis *Redis) AXFR(z *record.Zone) (records []dns.RR) {
 	return
 }
 
-func (redis *Redis) hosts(name string, z *record.Zone) []dns.RR {
+func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns.RR {
+
+	location := redis.FindLocation(name, z)
+	if location == "" {
+		zoneName := plugin.Zones(zones).Matches(name)
+		if zoneName == "" {
+			return nil
+		}
+
+		z2 := redis.LoadZone(zoneName)
+		location = redis.FindLocation(name, z2)
+		if location == "" {
+			return nil
+		}
+		return redis.fillExtras(name, z2, location)
+	}
+	return redis.fillExtras(name, z, location)
+}
+
+func (redis *Redis) fillExtras(name string, z *record.Zone, location string) []dns.RR {
 	var (
 		zoneRecords *record.Records
 		answers     []dns.RR
 	)
-	location := redis.FindLocation(name, z)
-	if location == "" {
+
+	zoneRecords = redis.GetZoneRecords(location, z)
+	if zoneRecords == nil {
 		return nil
 	}
-	zoneRecords = redis.GetZoneRecords(location, z)
 	a, _ := redis.A(name, z, zoneRecords)
 	answers = append(answers, a...)
 	aaaa, _ := redis.AAAA(name, z, zoneRecords)
@@ -428,40 +401,6 @@ func (redis *Redis) GetZoneRecords(key string, z *record.Zone) *record.Records {
 	return r
 }
 
-func keyExists(key string, z *record.Zone) bool {
-	_, ok := z.Locations[key]
-	return ok
-}
-
-func keyMatches(key string, z *record.Zone) bool {
-	for value := range z.Locations {
-		if strings.HasSuffix(value, key) {
-			return true
-		}
-	}
-	return false
-}
-
-func splitQuery(query string) (string, string, bool) {
-	if query == "" {
-		return "", "", false
-	}
-	var (
-		splits            []string
-		closestEncloser   string
-		sourceOfSynthesis string
-	)
-	splits = strings.SplitAfterN(query, ".", 2)
-	if len(splits) == 2 {
-		closestEncloser = splits[1]
-		sourceOfSynthesis = "*." + closestEncloser
-	} else {
-		closestEncloser = ""
-		sourceOfSynthesis = "*"
-	}
-	return closestEncloser, sourceOfSynthesis, true
-}
-
 func (redis *Redis) Connect() error {
 	redis.Pool = &redisCon.Pool{
 		Dial: func() (redisCon.Conn, error) {
@@ -514,19 +453,19 @@ func (redis *Redis) SaveZone(zone record.Zone) error {
 	return nil
 }
 
-func (redis *Redis) Save(zone string, subdomain string, value string) error {
-	var err error
-
-	conn := redis.Pool.Get()
-	if conn == nil {
-		fmt.Println("error connecting to redis")
-		return nil
-	}
-	defer conn.Close()
-
-	_, err = conn.Do("HSET", redis.keyPrefix+zone+redis.keySuffix, subdomain, value)
-	return err
-}
+//func (redis *Redis) Save(zone string, subdomain string, value string) error {
+//	var err error
+//
+//	conn := redis.Pool.Get()
+//	if conn == nil {
+//		fmt.Println("error connecting to redis")
+//		return nil
+//	}
+//	defer conn.Close()
+//
+//	_, err = conn.Do("HSET", redis.keyPrefix+zone+redis.keySuffix, subdomain, value)
+//	return err
+//}
 
 func (redis *Redis) LoadZone(zone string) *record.Zone {
 	var (
@@ -560,9 +499,90 @@ func (redis *Redis) LoadZone(zone string) *record.Zone {
 	return z
 }
 
+func (redis *Redis) LoadZones(name string) ([]string, error) {
+	var (
+		reply interface{}
+		err   error
+		zones []string
+	)
+
+	query := reduceZoneName(name)
+	if query == "" {
+		query = name
+	}
+
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	reply, err = conn.Do("KEYS", redis.keyPrefix+"*"+query+redis.keySuffix)
+	zones, err = redisCon.Strings(reply, err)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, _ := range zones {
+		zones[i] = strings.TrimPrefix(zones[i], redis.keyPrefix)
+		zones[i] = strings.TrimSuffix(zones[i], redis.keySuffix)
+	}
+	return zones, nil
+}
+
 // Key returns the given key with prefix and suffix
 func (redis *Redis) Key(key string) string {
 	return redis.keyPrefix + key + redis.keySuffix
+}
+
+func keyExists(key string, z *record.Zone) bool {
+	_, ok := z.Locations[key]
+	return ok
+}
+
+func keyMatches(key string, z *record.Zone) bool {
+	for value := range z.Locations {
+		if strings.HasSuffix(value, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// reduceZoneName strips the zone down to top- and second-level
+// so we can query the subset from redis. This should give
+// no problems unless we want to run a root dns
+func reduceZoneName(name string) string {
+	name = dns.Fqdn(name)
+	split := strings.Split(name[:len(name)-1], ".")
+	if len(split) == 0 {
+		return ""
+	}
+	x := len(split) - 2
+	if x > 0 {
+		name = ""
+		for ; x < len(split); x++ {
+			name += split[x] + "."
+		}
+	}
+	return name
+}
+
+func splitQuery(query string) (string, string, bool) {
+	if query == "" {
+		return "", "", false
+	}
+	var (
+		splits            []string
+		closestEncloser   string
+		sourceOfSynthesis string
+	)
+	splits = strings.SplitAfterN(query, ".", 2)
+	if len(splits) == 2 {
+		closestEncloser = splits[1]
+		sourceOfSynthesis = "*." + closestEncloser
+	} else {
+		closestEncloser = ""
+		sourceOfSynthesis = "*"
+	}
+	return closestEncloser, sourceOfSynthesis, true
 }
 
 func split255(s string) []string {
