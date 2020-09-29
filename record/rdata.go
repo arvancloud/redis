@@ -3,7 +3,7 @@ package record
 import "net"
 
 type A struct {
-	Ttl int    `json:"ttl,omitempty"`
+	Ttl int    `json:"ttl"`
 	Ip  net.IP `json:"ip"`
 }
 

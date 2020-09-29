@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	prefix, suffix = "", ""
+	prefix, suffix = "sls_", ""
 	minTtl         = 300
 
 	testTtl = 4242

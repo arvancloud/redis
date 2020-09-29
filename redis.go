@@ -95,6 +95,25 @@ func (redis *Redis) ErrorResponse(state request.Request, zone string, rcode int,
 	return dns.RcodeSuccess, err
 }
 
+func (redis *Redis) SOA(z *record.Zone, record *record.Records) (answers, extras []dns.RR) {
+	soa := new(dns.SOA)
+
+	soa.Hdr = dns.RR_Header{Name: dns.Fqdn(z.Name), Rrtype: dns.TypeSOA,
+		Class: dns.ClassINET, Ttl: redis.ttl(record.SOA.Ttl)}
+	soa.Ns = record.SOA.MName
+	soa.Mbox = record.SOA.RName
+	soa.Serial = record.SOA.Serial
+	soa.Refresh = record.SOA.Refresh
+	soa.Retry = record.SOA.Retry
+	soa.Expire = record.SOA.Expire
+	soa.Minttl = record.SOA.MinTtl
+	if soa.Serial == 0 {
+		soa.Serial = redis.soaSerial()
+	}
+	answers = append(answers, soa)
+	return
+}
+
 func (redis *Redis) A(name string, _ *record.Zone, record *record.Records) (answers, extras []dns.RR) {
 	for _, a := range record.A {
 		if a.Ip == nil {
@@ -200,25 +219,6 @@ func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records, zon
 	return
 }
 
-func (redis *Redis) SOA(name string, z *record.Zone, record *record.Records) (answers, extras []dns.RR) {
-	soa := new(dns.SOA)
-
-	soa.Hdr = dns.RR_Header{Name: dns.Fqdn(z.Name), Rrtype: dns.TypeSOA,
-		Class: dns.ClassINET, Ttl: redis.ttl(record.SOA.Ttl)}
-	soa.Ns = record.SOA.MName
-	soa.Mbox = record.SOA.RName
-	soa.Serial = record.SOA.Serial
-	soa.Refresh = record.SOA.Refresh
-	soa.Retry = record.SOA.Retry
-	soa.Expire = record.SOA.Expire
-	soa.Minttl = record.SOA.MinTtl
-	if soa.Serial == 0 {
-		soa.Serial = redis.soaSerial()
-	}
-	answers = append(answers, soa)
-	return
-}
-
 func (redis *Redis) CAA(name string, _ *record.Zone, record *record.Records) (answers, extras []dns.RR) {
 	if record == nil {
 		return
@@ -249,7 +249,7 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 		if key == "@" {
 			location := redis.FindLocation(z.Name, z)
 			zoneRecords := redis.GetZoneRecords(location, z)
-			soa, _ = redis.SOA(z.Name, z, zoneRecords)
+			soa, _ = redis.SOA(z, zoneRecords)
 		} else {
 			fqdnKey := dns.Fqdn(key) + z.Name
 			var as []dns.RR
@@ -347,6 +347,7 @@ func (redis *Redis) ttl(ttl int) uint32 {
 	if ttl >= 0 {
 		return uint32(ttl)
 	}
+	// todo: return SOA minTTL
 	if redis.DefaultTtl >= 0 {
 		return uint32(redis.DefaultTtl)
 	}

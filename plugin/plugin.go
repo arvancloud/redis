@@ -58,6 +58,8 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	zoneRecords := p.Redis.GetZoneRecords(location, zone)
 
 	switch qType {
+	case dns.TypeSOA:
+		answers, extras = p.Redis.SOA(zone, zoneRecords)
 	case dns.TypeA:
 		answers, extras = p.Redis.A(qName, zone, zoneRecords)
 	case dns.TypeAAAA:
@@ -72,8 +74,6 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		answers, extras = p.Redis.MX(qName, zone, zoneRecords, zones)
 	case dns.TypeSRV:
 		answers, extras = p.Redis.SRV(qName, zone, zoneRecords, zones)
-	case dns.TypeSOA:
-		answers, extras = p.Redis.SOA(qName, zone, zoneRecords)
 	case dns.TypeCAA:
 		answers, extras = p.Redis.CAA(qName, zone, zoneRecords)
 	default:
