@@ -42,7 +42,7 @@ func (redis *Redis) SetAddress(a string) {
 }
 
 func (redis *Redis) SetPassword(p string) {
-	redis.address = p
+	redis.password = p
 }
 
 func (redis *Redis) SetKeyPrefix(p string) {
