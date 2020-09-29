@@ -7,47 +7,46 @@ import (
 	"testing"
 )
 
-const prefix, suffix = "", ""
-const minTtl = 300
-
 const (
-	testTtl    = 4242
-	testDomain = "example.net"
-	testSub1   = "www"
-	testSub2   = "subhost"
-	nsHost     = "ns1.example.org"
-	soaRname   = "hostmaster.example.org"
-	soaSerial  = 2006010201
-	soaRefresh = 3600
-	soaRetry   = 1800
-	soaExpire  = 10000
-	soaMinTtl  = minTtl
-	ip4        = "93.184.216.34"
-	ip6        = "2606:2800:220:1:248:1893:25c8:1946"
-	txt        = "Lamas, seekers, and great monkeys will always protect them."
-	cSub       = "superservice"
-	cHost      = "cname.example.org."
-	mxHost     = "mail.example.org."
-	mxPref     = 10
-	srvService  = "_autodiscover._tcp"
-	srvPrio     = 10
-	srvWeight   = 80
-	srvPort     = 443
-	caaFlag     = 0
-	caaTag      = "issue"
-	caaValue    = "letsencrypt.org"
+	prefix, suffix = "", ""
+	minTtl         = 300
+
+	testTtl = 4242
+	txt     = "Lamas, seekers, and great monkeys will always protect them."
+	wcTxt   = "This is a wildcard TXT record"
 )
 
-var (
-	recA     = record.A{Ttl: testTtl, Ip: net.ParseIP(ip4)}
-	recAAAA  = record.AAAA{Ttl: testTtl, Ip: net.ParseIP(ip6)}
-	recTXT   = record.TXT{Ttl: testTtl, Text: txt}
-	recCNAME = record.CNAME{Ttl: testTtl, Host: cHost}
-	recNS    = record.NS{Ttl: testTtl, Host: nsHost}
-	recMX    = record.MX{Ttl: testTtl, Host: mxHost, Preference: mxPref}
-	recSRV   = record.SRV{Ttl: testTtl, Priority: srvPrio, Weight: srvWeight, Port: srvPort, Target: mxHost}
-	recCAA   = record.CAA{Ttl: testTtl, Flag: caaFlag, Tag: caaTag, Value: caaValue}
-)
+var zones = []string{"example.net", "example.org"}
+
+type testRecord struct {
+	l string
+	r record.Record
+}
+
+var testRecords = []testRecord{
+	{"@", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.34")}},
+	{"www", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.34")}},
+	{"@", record.AAAA{Ttl: testTtl, Ip: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946")}},
+	{"www", record.AAAA{Ttl: testTtl, Ip: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946")}},
+	{"@", record.TXT{Ttl: testTtl, Text: txt}},
+	{"@", record.NS{Ttl: testTtl, Host: "ns1.example.org."}},
+	{"@", record.NS{Ttl: testTtl, Host: "ns2.example.org."}},
+	{"@", record.MX{Ttl: testTtl, Host: "mail.example.org.", Preference: 10}},
+	{"wwx", record.CNAME{Ttl: testTtl, Host: "www.example.org."}},
+	{"_autodiscover._tcp", record.SRV{Ttl: testTtl, Priority: 10, Weight: 50, Port: 443, Target: "mail.example.org."}},
+	{"ns1", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.36")}},
+	{"ns2", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.37")}},
+	{"mail", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.38")}},
+	{"mail", record.AAAA{Ttl: testTtl, Ip: net.ParseIP("2606:2800:220:1:248:1893:25c8:1947")}},
+	{"@", record.CAA{Ttl: testTtl, Flag: 0, Tag: "issue", Value: "letsencrypt.org"}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.39")}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.40")}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.41")}},
+	{"lb", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.42")}},
+	{"*", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.43")}},
+	{"*", record.TXT{Ttl: testTtl, Text: wcTxt}},
+}
+
 
 func newRedis() *Redis {
 
@@ -64,41 +63,28 @@ func newRedis() *Redis {
 
 func TestRedis_SaveZone(t *testing.T) {
 
-	z := record.NewZone(testDomain, record.SOA{
-		Ttl:     testTtl,
-		MName:   nsHost,
-		RName:   soaRname,
-		Serial:  soaSerial,
-		Refresh: soaRefresh,
-		Retry:   soaRetry,
-		Expire:  soaExpire,
-		MinTtl:  soaMinTtl,
-	})
+	redis := newRedis()
 
-	z.Add("@", recA)
-	z.Add("@", recAAAA)
-	z.Add("@", recTXT)
-	z.Add("@", recMX)
-	z.Add("@", recCAA)
-	z.Add(cSub, recCNAME)
-	z.Add(srvService, recSRV)
-	z.Add(testSub2, recNS)
+	for _, z := range zones {
+		zone := record.NewZone(z, record.SOA{
+			Ttl:     testTtl,
+			MName:   "ns1." + z + ".",
+			RName:   "hostmaster." + z,
+			Serial:  2006010201,
+			Refresh: 3600,
+			Retry:   1800,
+			Expire:  10000,
+			MinTtl:  300,
+		})
 
-	z.Add(testSub1, recA)
-	z.Add(testSub1, recAAAA)
+		for _, tr := range testRecords {
+			zone.Add(tr.l, tr.r)
+		}
 
-	tests := []struct {
-		name    string
-		zone    record.Zone
-		wantErr bool
-	}{
-		{name: "Test1", zone: *z, wantErr: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			redis := newRedis()
-			if err := redis.SaveZone(tt.zone); (err != nil) != tt.wantErr {
-				t.Errorf("SaveZone() error = %v, wantErr %v", err, tt.wantErr)
+		t.Run(zone.Name, func(t *testing.T) {
+
+			if err := redis.SaveZone(*zone); err != nil {
+				t.Errorf("SaveZone() error = %v", err)
 			}
 		})
 	}
