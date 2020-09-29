@@ -24,7 +24,7 @@ type Record interface {
 // Records holds the location records for a zone
 type Records struct {
 	// SOA record for the zone, mandatory but only allowed in '@'
-	SOA   *SOA     `json:"SOA,omitempty"`
+	SOA   *SOA    `json:"SOA,omitempty"`
 	A     []A     `json:"A,omitempty"`
 	AAAA  []AAAA  `json:"AAAA,omitempty"`
 	TXT   []TXT   `json:"TXT,omitempty"`
@@ -50,12 +50,58 @@ func NewZone(name string, soa SOA) *Zone {
 	return &z
 }
 
-// Equal determines if the zones are equal
+// Equal determines if the zones are equal, the function call
+// .Equal() on every record in the zone
 func (z Zone) Equal(zone Zone) bool {
 	if z.Name != zone.Name {
 		return false
 	}
-	return false
+	for loc, rec := range z.Locations {
+		r2, ok := zone.Locations[loc]
+		if !ok {
+			return false
+		}
+
+		if loc == "@" && rec.SOA != nil {
+			if !rec.SOA.Equal(*r2.SOA) {
+				return false
+			}
+		}
+
+		if !aEqual(rec.A, r2.A) {
+			return false
+		}
+
+		if !aaaaEqual(rec.AAAA, r2.AAAA) {
+			return false
+		}
+
+		if !txtEqual(rec.TXT, r2.TXT) {
+			return false
+		}
+
+		if !nsEqual(rec.NS, r2.NS) {
+			return false
+		}
+
+		if !mxEqual(rec.MX, r2.MX) {
+			return false
+		}
+
+		if !cnameEqual(rec.CNAME, r2.CNAME) {
+			return false
+		}
+
+		if !srvEqual(rec.SRV, r2.SRV) {
+			return false
+		}
+
+		if !caaEqual(rec.CAA, r2.CAA) {
+			return false
+		}
+
+	}
+	return true
 }
 
 func (z Zone) SOA() (*SOA, error) {
