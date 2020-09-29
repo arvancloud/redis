@@ -7,8 +7,6 @@ import (
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 	"github.com/rverst/coredns-redis/record"
-	"math"
-	"strconv"
 	"strings"
 	"time"
 
@@ -95,20 +93,20 @@ func (redis *Redis) ErrorResponse(state request.Request, zone string, rcode int,
 	return dns.RcodeSuccess, err
 }
 
-func (redis *Redis) SOA(z *record.Zone, record *record.Records) (answers, extras []dns.RR) {
+func (redis *Redis) SOA(z *record.Zone, rec *record.Records) (answers, extras []dns.RR) {
 	soa := new(dns.SOA)
 
 	soa.Hdr = dns.RR_Header{Name: dns.Fqdn(z.Name), Rrtype: dns.TypeSOA,
-		Class: dns.ClassINET, Ttl: redis.ttl(record.SOA.Ttl)}
-	soa.Ns = record.SOA.MName
-	soa.Mbox = record.SOA.RName
-	soa.Serial = record.SOA.Serial
-	soa.Refresh = record.SOA.Refresh
-	soa.Retry = record.SOA.Retry
-	soa.Expire = record.SOA.Expire
-	soa.Minttl = record.SOA.MinTtl
+		Class: dns.ClassINET, Ttl: redis.ttl(rec.SOA.Ttl)}
+	soa.Ns = rec.SOA.MName
+	soa.Mbox = rec.SOA.RName
+	soa.Serial = rec.SOA.Serial
+	soa.Refresh = rec.SOA.Refresh
+	soa.Retry = rec.SOA.Retry
+	soa.Expire = rec.SOA.Expire
+	soa.Minttl = rec.SOA.MinTtl
 	if soa.Serial == 0 {
-		soa.Serial = redis.DefaultSerial()
+		soa.Serial = record.DefaultSerial()
 	}
 	answers = append(answers, soa)
 	return
