@@ -39,7 +39,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
-	zone := p.Redis.LoadZone(zoneName)
+	zone := p.Redis.LoadZone(zoneName, false)
 	if zone == nil {
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
 	}
@@ -55,7 +55,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	answers := make([]dns.RR, 0, 0)
 	extras := make([]dns.RR, 0, 10)
-	zoneRecords := p.Redis.GetZoneRecords(location, zone)
+	zoneRecords := p.Redis.LoadZoneRecords(location, zone)
 
 	switch qType {
 	case dns.TypeSOA:
