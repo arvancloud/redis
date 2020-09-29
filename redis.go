@@ -108,7 +108,7 @@ func (redis *Redis) SOA(z *record.Zone, record *record.Records) (answers, extras
 	soa.Expire = record.SOA.Expire
 	soa.Minttl = record.SOA.MinTtl
 	if soa.Serial == 0 {
-		soa.Serial = redis.soaSerial()
+		soa.Serial = redis.DefaultSerial()
 	}
 	answers = append(answers, soa)
 	return
@@ -332,17 +332,6 @@ func (redis *Redis) fillExtras(name string, z *record.Zone, location string) []d
 	return answers
 }
 
-func (redis *Redis) soaSerial() uint32 {
-	n := time.Now().UTC()
-	// calculate two digit number (0-99) based on the minute of the day, 1440 / 14.4545 = 99,0003
-	c := int(math.Floor(((float64(n.Hour() + 1)) * float64(n.Minute()+1)) / 14.5454))
-	ser, err := strconv.ParseUint(fmt.Sprintf("%s%02d", n.Format("20060102"), c), 10, 32)
-	if err != nil {
-		return uint32(time.Now().Unix())
-	}
-	return uint32(ser)
-}
-
 func (redis *Redis) ttl(ttl int) uint32 {
 	if ttl >= 0 {
 		return uint32(ttl)
@@ -387,7 +376,6 @@ func (redis *Redis) FindLocation(query string, z *record.Zone) string {
 	}
 	return ""
 }
-
 
 func (redis *Redis) Connect() error {
 	redis.Pool = &redisCon.Pool{

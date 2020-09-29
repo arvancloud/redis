@@ -155,6 +155,16 @@ func (a SOA) Equal(b SOA) bool {
 		a.Expire == b.Expire && a.MinTtl == b.MinTtl
 }
 
+func (a *SOA) IncreaseSerial() {
+	if a.Serial == 0 {
+		a.Serial = DefaultSerial()
+	} else {
+		if s, err := IncrementSerial(a.Serial); err == nil {
+			a.Serial = s
+		}
+	}
+}
+
 type CAA struct {
 	Ttl   int    `json:"ttl"`
 	Flag  uint8  `json:"flag"`
