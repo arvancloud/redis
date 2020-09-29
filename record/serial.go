@@ -26,9 +26,19 @@ func DefaultSerial() uint32 {
 	return uint32(ser)
 }
 
+// NewSerial returns a new Serial where the date is set to `Now().UTC()` and the
+// counter to 0
+func NewSerial() uint32 {
+	ser, err := strconv.ParseUint(fmt.Sprintf("%s00", time.Now().UTC().Format(SerialTimeFormat)), 10, 32)
+	if err != nil {
+		panic(err)
+	}
+	return uint32(ser)
+}
+
 // IncrementSerial increments the given 10 digit serial by 1 if it's on the same date,
 // otherwise the date is set to `Now().UTC()` and the counter to 0
-// If the counter exceeds 99, an error is returned
+// If the counter exceeds 99, or the date part is invalid or in the future, an error is returned
 func IncrementSerial(serial uint32) (uint32, error) {
 	s := strconv.FormatUint(uint64(serial), 10)
 
