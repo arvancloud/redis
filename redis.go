@@ -65,6 +65,25 @@ func (redis *Redis) SetDefaultTtl(t int) {
 	redis.DefaultTtl = t
 }
 
+// Ping sends a "PING" command to the redis server
+// and returns (true, nil) if the server response
+// is 'PONG'. Otherwise Ping return false and
+// an error
+func (redis *Redis) Ping() (bool, error){
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	r, err := conn.Do("PING")
+	s, err := redisCon.String(r, err)
+	if err != nil {
+		return false, err
+	}
+	if s != "PONG" {
+		return false, fmt.Errorf("unexpected response, expected 'PONG', got: %s", s)
+	}
+	return true, nil
+}
+
 func (redis *Redis) ErrorResponse(state request.Request, zone string, rcode int, err error) (int, error) {
 	m := new(dns.Msg)
 	m.SetRcode(state.Req, rcode)
