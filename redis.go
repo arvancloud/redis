@@ -67,7 +67,7 @@ func (redis *Redis) SetDefaultTtl(t int) {
 // and returns (true, nil) if the server response
 // is 'PONG'. Otherwise Ping return false and
 // an error
-func (redis *Redis) Ping() (bool, error){
+func (redis *Redis) Ping() (bool, error) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
 
@@ -298,7 +298,14 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns
 	if location == "" {
 		zoneName := plugin.Zones(zones).Matches(name)
 		if zoneName == "" {
-			return nil
+			zones, err := redis.LoadZones(name)
+			if err != nil {
+				return nil
+			}
+			zoneName = plugin.Zones(zones).Matches(name)
+			if zoneName == "" {
+				return nil
+			}
 		}
 
 		z2 := redis.LoadZone(zoneName, false)
@@ -457,7 +464,7 @@ func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 
 	reply, err = conn.Do("HKEYS", redis.keyPrefix+zone+redis.keySuffix)
 	vals, err = redisCon.Strings(reply, err)
-	if err != nil || len(vals) == 0{
+	if err != nil || len(vals) == 0 {
 		return nil
 	}
 
@@ -504,6 +511,36 @@ func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records 
 	if err != nil {
 		fmt.Println("parse error : ", val, err)
 		return nil
+	}
+
+	if r.SOA != nil {
+		if !dns.IsFqdn(r.SOA.MName) {
+			r.SOA.MName += "." + z.Name
+		}
+		if !dns.IsFqdn(r.SOA.RName) {
+			r.SOA.RName += "." + z.Name
+		}
+	}
+
+	for i := range r.CNAME {
+		if !dns.IsFqdn(r.CNAME[i].Host) {
+			r.CNAME[i].Host += "." + z.Name
+		}
+	}
+	for i := range r.MX {
+		if !dns.IsFqdn(r.MX[i].Host) {
+			r.MX[i].Host += "." + z.Name
+		}
+	}
+	for i := range r.NS {
+		if !dns.IsFqdn(r.NS[i].Host) {
+			r.NS[i].Host += "." + z.Name
+		}
+	}
+	for i := range r.SRV {
+		if !dns.IsFqdn(r.SRV[i].Target) {
+			r.SRV[i].Target += "." + z.Name
+		}
 	}
 	return r
 }
