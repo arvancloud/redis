@@ -271,7 +271,7 @@ func (z Zone) String() (str string) {
 	i, err = sb.WriteString(fmt.Sprintf("$ORIGIN  %s\n\n", z.Name))
 	checkError(i, err)
 
-	if s, err := z.SOA(); err != nil {
+	if s, err := z.SOA(); err == nil {
 		i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SOA     %s %s %10d %d %d %d %d\n",
 			spacedLoc("@", maxL), s.Ttl, s.MName, s.RName, s.Serial, s.Expire, s.Retry, s.Refresh, s.MinTtl))
 		checkError(i, err)
