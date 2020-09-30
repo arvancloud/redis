@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/miekg/dns"
 	"log"
+	"sort"
+	"strings"
 )
 
 type Type string
@@ -47,6 +49,7 @@ func NewZone(name string, soa SOA) *Zone {
 		Name: dns.Fqdn(name),
 	}
 	z.addSoa(soa)
+
 	return &z
 }
 
@@ -241,4 +244,111 @@ func (z *Zone) getOrAddLocation(loc string) Records {
 	}
 	r := z.Locations[loc]
 	return r
+}
+
+func (z Zone) String() (str string) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			str = fmt.Sprintf("ERROR: %s", r)
+		}
+	}()
+	var (
+		i   int
+		err error
+		sb  = strings.Builder{}
+	)
+
+	keys := make([]string, 0, len(z.Locations))
+	maxL := 0
+	for k := range z.Locations {
+		keys = append(keys, k)
+		if len(k) > maxL {
+			maxL = len(k)
+		}
+	}
+	sort.Strings(keys)
+	i, err = sb.WriteString(fmt.Sprintf("$ORIGIN  %s\n\n", z.Name))
+	checkError(i, err)
+
+	if s, err := z.SOA(); err != nil {
+		i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SOA     %s %s %10d %d %d %d %d\n",
+			spacedLoc("@", maxL), s.Ttl, s.MName, s.RName, s.Serial, s.Expire, s.Retry, s.Refresh, s.MinTtl))
+		checkError(i, err)
+
+	}
+
+	for _, k := range keys {
+		for _, r := range z.Locations[k].A {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     A       %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Ip))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].AAAA {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     AAAA    %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Ip))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].TXT {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     TXT     %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Text))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].CNAME {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     CNAME    %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Host))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].MX {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     MX      %d %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Preference, r.Host))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].NS {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     NS      %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Host))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].SRV {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SRV     %d %d %d %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Priority, r.Weight, r.Port, r.Target))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].CAA {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     CAA     %d %s %s\n",
+				spacedLoc(k, maxL), r.Ttl, r.Flag, r.Tag, r.Value))
+			checkError(i, err)
+		}
+		if k == "@" {
+			i, err = sb.WriteString("\n")
+			checkError(i, err)
+		}
+	}
+
+	i, err = sb.WriteString("\n")
+	checkError(i, err)
+
+	return sb.String()
+}
+
+func spacedLoc(k string, l int) string {
+	l -= len(k)
+	if l < 0 {
+		l = 5
+	} else if l > 10 {
+		l += 1
+	} else {
+		l += 3
+	}
+	return fmt.Sprintf("%s%s", k, strings.Repeat(" ", l))
+}
+
+
+func checkError(i int, err error) {
+	if err != nil {
+		panic(err)
+	}
+	if i == 0 {
+		panic("nothing written")
+	}
 }
