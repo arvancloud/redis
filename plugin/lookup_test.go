@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/test"
 	"github.com/miekg/dns"
@@ -9,7 +10,10 @@ import (
 	"github.com/rverst/coredns-redis/record"
 	"net"
 	"testing"
+	"time"
 )
+
+//todo: mock redis for testing
 
 const (
 	prefix, suffix = "lookup-test_", "_lookup-test"
@@ -214,5 +218,80 @@ func TestPlugin_Lookup(t *testing.T) {
 	}
 
 }
+
+func TestPlugin_Lookup2(t *testing.T) {
+
+	plug, err := newRedisPlugin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i:=0;i<5;i++ {
+		fmt.Println("shutdown redis backend for log testing")
+		time.Sleep(time.Second)
+	}
+
+
+	for _, z := range zones {
+		zone := record.NewZone(z, record.SOA{
+			Ttl:     testTtl,
+			MName:   "ns1." + z + ".",
+			RName:   "hostmaster",
+			Serial:  2006010201,
+			Refresh: 3600,
+			Retry:   1800,
+			Expire:  10000,
+			MinTtl:  300,
+		})
+
+		for _, tr := range testRecords {
+			zone.Add(tr.l, tr.r)
+		}
+
+		err := plug.Redis.SaveZone(*zone)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	tests := []struct {
+		name string
+		tc   test.Case
+	}{
+		{name: "example.net. IN SOA 1", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeSOA,
+			Answer: []dns.RR{test.SOA("example.net. 4242 IN SOA ns1.example.net. hostmaster.example.net 2006010201 3600 1800 10000 300")},
+		}},
+		{name: "example.net. IN SOA 2", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeSOA,
+			Answer: []dns.RR{test.SOA("example.net. 4242 IN SOA ns1.example.net. hostmaster.example.net 2006010201 3600 1800 10000 300")},
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			m := tt.tc.Msg()
+			recorder := dnstest.NewRecorder(&test.ResponseWriter{})
+			_, _ = plug.ServeDNS(ctxt, recorder, m)
+
+			res := recorder.Msg
+			// todo: FIX, should not happen
+			if res == nil {
+				res = new(dns.Msg)
+			}
+
+			err := test.SortAndCheck(res, tt.tc)
+			if err != nil {
+				t.Error(err)
+			}
+			for i:=0;i<5;i++ {
+				fmt.Println("shutdown redis backend for log testing")
+				time.Sleep(time.Second)
+			}
+		})
+	}
+
+}
+
+
 
 var ctxt context.Context

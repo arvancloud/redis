@@ -298,7 +298,7 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns
 	if location == "" {
 		zoneName := plugin.Zones(zones).Matches(name)
 		if zoneName == "" {
-			zones, err := redis.LoadZones(name)
+			zones, err, _ := redis.LoadZones(name)
 			if err != nil {
 				return nil
 			}
@@ -545,7 +545,7 @@ func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records 
 	return r
 }
 
-func (redis *Redis) LoadZones(name string) ([]string, error) {
+func (redis *Redis) LoadZones(name string) ([]string, error, bool) {
 	var (
 		reply interface{}
 		err   error
@@ -561,16 +561,20 @@ func (redis *Redis) LoadZones(name string) ([]string, error) {
 	defer conn.Close()
 
 	reply, err = conn.Do("KEYS", redis.keyPrefix+"*"+query+redis.keySuffix)
+	if err != nil {
+		return nil, err, false
+	}
+
 	zones, err = redisCon.Strings(reply, err)
 	if err != nil {
-		return nil, err
+		return nil, err, true
 	}
 
 	for i, _ := range zones {
 		zones[i] = strings.TrimPrefix(zones[i], redis.keyPrefix)
 		zones[i] = strings.TrimSuffix(zones[i], redis.keySuffix)
 	}
-	return zones, nil
+	return zones, nil, true
 }
 
 // Key returns the given key with prefix and suffix

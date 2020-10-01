@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/request"
+	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/miekg/dns"
 	redis "github.com/rverst/coredns-redis"
 	"github.com/rverst/coredns-redis/record"
 )
 
 const name = "redis"
+
+var log = clog.NewWithPlugin("redis")
 
 type Plugin struct {
 	Redis *redis.Redis
@@ -30,8 +33,12 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
-	zones, err := p.Redis.LoadZones(qName)
+	zones, err, connOk := p.Redis.LoadZones(qName)
 	if err != nil {
+		if !connOk {
+			log.Error(err)
+			return dns.RcodeServerFailure, err
+		}
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 	zoneName := plugin.Zones(zones).Matches(qName)
@@ -85,7 +92,6 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
 	m.Answer = append(m.Answer, answers...)
 	m.Extra = append(m.Extra, extras...)
-
 	state.SizeAndDo(m)
 	m = state.Scrub(m)
 	_ = w.WriteMsg(m)

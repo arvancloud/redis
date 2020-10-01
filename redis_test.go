@@ -2,7 +2,6 @@ package redis
 
 import (
 	"github.com/rverst/coredns-redis/record"
-	"log"
 	"net"
 	"testing"
 )
@@ -47,8 +46,7 @@ var testRecords = []testRecord{
 	{"*", record.TXT{Ttl: testTtl, Text: wcTxt}},
 }
 
-
-func newRedis() *Redis {
+func newRedis() (*Redis, error) {
 
 	r := New()
 	r.SetKeyPrefix(prefix)
@@ -56,14 +54,17 @@ func newRedis() *Redis {
 	r.SetDefaultTtl(minTtl)
 	r.SetAddress("192.168.0.100:6379")
 	if err := r.Connect(); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return r
+	return r, nil
 }
 
 func TestRedis_SaveZone(t *testing.T) {
 
-	redis := newRedis()
+	redis, err := newRedis()
+	if err != nil {
+		t.Error(err)
+	}
 
 	for _, z := range zones {
 		zone := record.NewZone(z, record.SOA{
@@ -89,3 +90,5 @@ func TestRedis_SaveZone(t *testing.T) {
 		})
 	}
 }
+
+
