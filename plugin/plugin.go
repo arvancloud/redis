@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/coredns/coredns/plugin"
-	"github.com/coredns/coredns/request"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
+	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 	redis "github.com/rverst/coredns-redis"
 	"github.com/rverst/coredns-redis/record"
@@ -24,6 +24,14 @@ func (p *Plugin) Name() string {
 	return name
 }
 
+func (p *Plugin) Ready() bool {
+	ok, err := p.Redis.Ping()
+	if err != nil {
+		log.Error(err)
+	}
+	return ok
+}
+
 func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{Req: r, W: w}
 	qName := state.Name()
@@ -35,28 +43,32 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	zones, err, connOk := p.Redis.LoadZones(qName)
 	if err != nil {
+		log.Error(err)
 		if !connOk {
-			log.Error(err)
 			return dns.RcodeServerFailure, err
 		}
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 	zoneName := plugin.Zones(zones).Matches(qName)
 	if zoneName == "" {
+		log.Debugf("zone not found: %s", qName)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
 	zone := p.Redis.LoadZone(zoneName, false)
 	if zone == nil {
+		log.Warningf("unable to load zone: %s", zoneName)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
 	}
 
 	if qType == dns.TypeAXFR {
+		log.Debug("zone transfer request (Handler)")
 		return p.handleZoneTransfer(zone, zones, w, r)
 	}
 
 	location := p.Redis.FindLocation(qName, zone)
 	if location == "" {
+		log.Debugf("location %s not found for zone: %s", qName, zone)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
 	}
 
