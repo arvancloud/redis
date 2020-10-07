@@ -46,6 +46,11 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 						return redis.New(), c.ArgErr()
 					}
 					r.SetAddress(c.Val())
+				case "username":
+					if !c.NextArg() {
+						return redis.New(), c.ArgErr()
+					}
+					r.SetUsername(c.Val())
 				case "password":
 					if !c.NextArg() {
 						return redis.New(), c.ArgErr()
