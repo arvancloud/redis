@@ -21,6 +21,7 @@ const (
 type Redis struct {
 	Pool           *redisCon.Pool
 	address        string
+	username       string
 	password       string
 	connectTimeout int
 	readTimeout    int
@@ -39,6 +40,9 @@ func (redis *Redis) SetAddress(a string) {
 	redis.address = a
 }
 
+func (redis Redis) SetUsername(u string)  {
+	redis.username = u
+}
 func (redis *Redis) SetPassword(p string) {
 	redis.password = p
 }
@@ -386,6 +390,9 @@ func (redis *Redis) Connect() error {
 	redis.Pool = &redisCon.Pool{
 		Dial: func() (redisCon.Conn, error) {
 			opts := []redisCon.DialOption{}
+			if redis.username != "" {
+				opts = append(opts, redisCon.DialUsername(redis.username))
+			}
 			if redis.password != "" {
 				opts = append(opts, redisCon.DialPassword(redis.password))
 			}
@@ -433,20 +440,6 @@ func (redis *Redis) SaveZone(zone record.Zone) error {
 
 	return nil
 }
-
-//func (redis *Redis) Save(zone string, subdomain string, value string) error {
-//	var err error
-//
-//	conn := redis.Pool.Get()
-//	if conn == nil {
-//		fmt.Println("error connecting to redis")
-//		return nil
-//	}
-//	defer conn.Close()
-//
-//	_, err = conn.Do("HSET", redis.keyPrefix+zone+redis.keySuffix, subdomain, value)
-//	return err
-//}
 
 func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	var (
