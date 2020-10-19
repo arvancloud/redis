@@ -594,8 +594,8 @@ func (redis *Redis) LoadZones(name string) ([]string, error, bool) {
 }
 
 // Key returns the given key with prefix and suffix
-func (redis *Redis) Key(key string) string {
-	return redis.keyPrefix + key + redis.keySuffix
+func (redis *Redis) Key(zoneName string) string {
+	return redis.keyPrefix + dns.Fqdn(zoneName) + redis.keySuffix
 }
 
 func keyExists(key string, z *record.Zone) bool {
