@@ -40,7 +40,7 @@ func (redis *Redis) SetAddress(a string) {
 	redis.address = a
 }
 
-func (redis Redis) SetUsername(u string)  {
+func (redis Redis) SetUsername(u string) {
 	redis.username = u
 }
 func (redis *Redis) SetPassword(p string) {
@@ -424,6 +424,15 @@ func (redis *Redis) Connect() error {
 	return nil
 }
 
+func (redis *Redis) DeleteZone(zoneName string) (bool, error) {
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	reply, err := conn.Do("DEL", redis.Key(zoneName))
+	i, err := redisCon.Int(reply, err)
+	return i == 1, err
+}
+
 func (redis *Redis) SaveZone(zone record.Zone) error {
 	conn := redis.Pool.Get()
 	defer conn.Close()
@@ -455,7 +464,7 @@ func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	}
 	defer conn.Close()
 
-	reply, err = conn.Do("HKEYS", redis.keyPrefix+zone+redis.keySuffix)
+	reply, err = conn.Do("HKEYS", redis.Key(zone))
 	vals, err = redisCon.Strings(reply, err)
 	if err != nil || len(vals) == 0 {
 		return nil
@@ -491,7 +500,7 @@ func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records 
 		label = key
 	}
 
-	reply, err = conn.Do("HGET", redis.keyPrefix+z.Name+redis.keySuffix, label)
+	reply, err = conn.Do("HGET", redis.Key(z.Name), label)
 	if err != nil {
 		return nil
 	}
