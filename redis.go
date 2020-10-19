@@ -442,7 +442,7 @@ func (redis *Redis) DeleteZones(zoneNames []string) (int, error) {
 		keys[i] = redis.Key(zoneNames[i])
 	}
 
-	reply, err := conn.Do("DEL", strings.Join(keys, " "))
+	reply, err := conn.Do("DEL", keys)
 	i, err := redisCon.Int(reply, err)
 	return i, err
 }
