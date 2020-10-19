@@ -433,6 +433,20 @@ func (redis *Redis) DeleteZone(zoneName string) (bool, error) {
 	return i == 1, err
 }
 
+func (redis *Redis) DeleteZones(zoneNames []string) (int, error) {
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	keys := make([]string, len(zoneNames))
+	for i := range zoneNames {
+		keys[i] = redis.Key(zoneNames[i])
+	}
+
+	reply, err := conn.Do("DEL", strings.Join(keys, " "))
+	i, err := redisCon.Int(reply, err)
+	return i, err
+}
+
 func (redis *Redis) SaveZone(zone record.Zone) error {
 	conn := redis.Pool.Get()
 	defer conn.Close()
