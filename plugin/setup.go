@@ -19,7 +19,13 @@ func init() {
 func setup(c *caddy.Controller) error {
 	r, err := redisParse(c)
 	if err != nil {
+
+	}
+
+	if ok, err := r.Ping(); err != nil {
 		return plugin.Error("redis", err)
+	} else {
+		log.Infof("ping to redis ok: %t", ok)
 	}
 
 	p := &Plugin{
@@ -105,8 +111,8 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 
 		}
 
-		r.Connect()
-		return r, nil
+		err := r.Connect()
+		return r, err
 	}
 
 	return nil, errors.New("no configuration found")
