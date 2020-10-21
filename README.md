@@ -1,5 +1,16 @@
 *redis* enables reading zone data from redis database.
+
+## build
+
 this plugin should be located right next to *etcd* in *plugins.cfg*
+
+```sh
+git clone https://github.com/coredns/coredns
+cd coredns
+echo 'redis:github.com/threefoldtech/coredns-redis' >> plugin.cfg
+make
+chmod +x coredns
+```
 
 ## syntax
 
