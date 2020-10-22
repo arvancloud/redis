@@ -279,47 +279,48 @@ func (z Zone) String() (str string) {
 	}
 
 	for _, k := range keys {
-		if k == "@" {
-			k = " "
+		loc := k
+		if loc == "@" {
+			loc = " "
 		}
 		for _, r := range z.Locations[k].A {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     A       %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Ip))
+				spacedLoc(loc, maxL), r.Ttl, r.Ip))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].AAAA {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     AAAA    %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Ip))
+				spacedLoc(loc, maxL), r.Ttl, r.Ip))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].TXT {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     TXT     %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Text))
+				spacedLoc(loc, maxL), r.Ttl, r.Text))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].CNAME {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     CNAME    %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Host))
+				spacedLoc(loc, maxL), r.Ttl, r.Host))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].MX {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     MX      %d %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Preference, r.Host))
+				spacedLoc(loc, maxL), r.Ttl, r.Preference, r.Host))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].NS {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     NS      %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Host))
+				spacedLoc(loc, maxL), r.Ttl, r.Host))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].SRV {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SRV     %d %d %d %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Priority, r.Weight, r.Port, r.Target))
+				spacedLoc(loc, maxL), r.Ttl, r.Priority, r.Weight, r.Port, r.Target))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].CAA {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     CAA     %d %s %s\n",
-				spacedLoc(k, maxL), r.Ttl, r.Flag, r.Tag, r.Value))
+				spacedLoc(loc, maxL), r.Ttl, r.Flag, r.Tag, r.Value))
 			checkError(i, err)
 		}
 		if k == "@" {
