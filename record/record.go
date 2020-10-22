@@ -273,12 +273,15 @@ func (z Zone) String() (str string) {
 
 	if s, err := z.SOA(); err == nil {
 		i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SOA     %s %s %10d %d %d %d %d\n",
-			spacedLoc("@", maxL), s.Ttl, s.MName, s.RName, s.Serial, s.Expire, s.Retry, s.Refresh, s.MinTtl))
+			spacedLoc("@", maxL), s.Ttl, s.MName, s.RName, s.Serial, s.Refresh, s.Expire, s.Retry,  s.MinTtl))
 		checkError(i, err)
 
 	}
 
 	for _, k := range keys {
+		if k == "@" {
+			k = " "
+		}
 		for _, r := range z.Locations[k].A {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     A       %s\n",
 				spacedLoc(k, maxL), r.Ttl, r.Ip))
