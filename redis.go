@@ -250,7 +250,7 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 	for key := range z.Locations {
 		if key == "@" {
 			location := redis.FindLocation(z.Name, z)
-			zoneRecords := redis.LoadZoneRecords(location, z)
+			zoneRecords := redis.LoadZoneRecords(location, z, true)
 			soa, _ = redis.SOA(z, zoneRecords)
 		} else {
 			fqdnKey := dns.Fqdn(key) + z.Name
@@ -258,7 +258,7 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 			var xs []dns.RR
 
 			location := redis.FindLocation(fqdnKey, z)
-			zoneRecords := redis.LoadZoneRecords(location, z)
+			zoneRecords := redis.LoadZoneRecords(location, z,true)
 
 			// Pull all zone records
 			as, xs = redis.A(fqdnKey, z, zoneRecords)
@@ -312,7 +312,7 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns
 			}
 		}
 
-		z2 := redis.LoadZone(zoneName, false)
+		z2 := redis.LoadZone(zoneName, false, true)
 		location = redis.FindLocation(name, z2)
 		if location == "" {
 			return nil
@@ -328,7 +328,7 @@ func (redis *Redis) fillExtras(name string, z *record.Zone, location string) []d
 		answers     []dns.RR
 	)
 
-	zoneRecords = redis.LoadZoneRecords(location, z)
+	zoneRecords = redis.LoadZoneRecords(location, z, true)
 	if zoneRecords == nil {
 		return nil
 	}
@@ -471,7 +471,7 @@ func (redis *Redis) SaveZones(zones []record.Zone) (int, error) {
 	return ok, nil
 }
 
-func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
+func (redis *Redis) LoadZone(zone string, withRecord, recordsRaw bool) *record.Zone {
 	var (
 		reply interface{}
 		err   error
@@ -496,7 +496,7 @@ func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	z.Locations = make(map[string]record.Records)
 	for _, val := range vals {
 		if withRecord {
-			z.Locations[val] = *redis.LoadZoneRecords(val, z)
+			z.Locations[val] = *redis.LoadZoneRecords(val, z, recordsRaw)
 		} else {
 			z.Locations[val] = record.Records{} //struct{}{}
 		}
@@ -505,7 +505,7 @@ func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	return z
 }
 
-func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records {
+func (redis *Redis) LoadZoneRecords(key string, z *record.Zone, raw bool) *record.Records {
 	var (
 		err   error
 		reply interface{}
@@ -536,35 +536,11 @@ func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records 
 		return nil
 	}
 
-	if r.SOA != nil {
-		if !dns.IsFqdn(r.SOA.MName) {
-			r.SOA.MName += "." + z.Name
-		}
-		if !dns.IsFqdn(r.SOA.RName) {
-			r.SOA.RName += "." + z.Name
-		}
+	if raw {
+		return r
 	}
 
-	for i := range r.CNAME {
-		if !dns.IsFqdn(r.CNAME[i].Host) {
-			r.CNAME[i].Host += "." + z.Name
-		}
-	}
-	for i := range r.MX {
-		if !dns.IsFqdn(r.MX[i].Host) {
-			r.MX[i].Host += "." + z.Name
-		}
-	}
-	for i := range r.NS {
-		if !dns.IsFqdn(r.NS[i].Host) {
-			r.NS[i].Host += "." + z.Name
-		}
-	}
-	for i := range r.SRV {
-		if !dns.IsFqdn(r.SRV[i].Target) {
-			r.SRV[i].Target += "." + z.Name
-		}
-	}
+	r.MakeFqdn(z.Name)
 	return r
 }
 

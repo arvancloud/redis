@@ -37,6 +37,47 @@ type Records struct {
 	CAA   []CAA   `json:"CAA,omitempty"`
 }
 
+// appends the zoneName to values which are not fully qualified domain names
+func (r *Records) MakeFqdn(zoneName string) {
+
+	if len(zoneName) == 0 {
+		return
+	} else if zoneName[0] != '.' {
+		zoneName = "." + zoneName
+	}
+	zoneName = dns.Fqdn(zoneName)
+
+	if r.SOA != nil {
+		if !dns.IsFqdn(r.SOA.MName) {
+			r.SOA.MName += zoneName
+		}
+		if !dns.IsFqdn(r.SOA.RName) {
+			r.SOA.RName += zoneName
+		}
+	}
+
+	for i := range r.CNAME {
+		if !dns.IsFqdn(r.CNAME[i].Host) {
+			r.CNAME[i].Host += zoneName
+		}
+	}
+	for i := range r.MX {
+		if !dns.IsFqdn(r.MX[i].Host) {
+			r.MX[i].Host += zoneName
+		}
+	}
+	for i := range r.NS {
+		if !dns.IsFqdn(r.NS[i].Host) {
+			r.NS[i].Host += zoneName
+		}
+	}
+	for i := range r.SRV {
+		if !dns.IsFqdn(r.SRV[i].Target) {
+			r.SRV[i].Target += zoneName
+		}
+	}
+}
+
 // Zone represents a DNS zone
 type Zone struct {
 	Name      string
@@ -273,7 +314,7 @@ func (z Zone) String() (str string) {
 
 	if s, err := z.SOA(); err == nil {
 		i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SOA     %s %s %10d %d %d %d %d\n",
-			spacedLoc("@", maxL), s.Ttl, s.MName, s.RName, s.Serial, s.Refresh, s.Expire, s.Retry,  s.MinTtl))
+			spacedLoc("@", maxL), s.Ttl, s.MName, s.RName, s.Serial, s.Refresh, s.Expire, s.Retry, s.MinTtl))
 		checkError(i, err)
 
 	}
@@ -346,7 +387,6 @@ func spacedLoc(k string, l int) string {
 	}
 	return fmt.Sprintf("%s%s", k, strings.Repeat(" ", l))
 }
-
 
 func checkError(i int, err error) {
 	if err != nil {
