@@ -250,7 +250,8 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 	for key := range z.Locations {
 		if key == "@" {
 			location := redis.FindLocation(z.Name, z)
-			zoneRecords := redis.LoadZoneRecords(location, z, true)
+			zoneRecords := redis.LoadZoneRecords(location, z)
+			zoneRecords.MakeFqdn(z.Name)
 			soa, _ = redis.SOA(z, zoneRecords)
 		} else {
 			fqdnKey := dns.Fqdn(key) + z.Name
@@ -258,7 +259,8 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 			var xs []dns.RR
 
 			location := redis.FindLocation(fqdnKey, z)
-			zoneRecords := redis.LoadZoneRecords(location, z,true)
+			zoneRecords := redis.LoadZoneRecords(location, z)
+			zoneRecords.MakeFqdn(z.Name)
 
 			// Pull all zone records
 			as, xs = redis.A(fqdnKey, z, zoneRecords)
@@ -302,7 +304,7 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns
 	if location == "" {
 		zoneName := plugin.Zones(zones).Matches(name)
 		if zoneName == "" {
-			zones, err, _ := redis.LoadZones(name)
+			zones, err, _ := redis.LoadZoneNames(name)
 			if err != nil {
 				return nil
 			}
@@ -312,7 +314,7 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns
 			}
 		}
 
-		z2 := redis.LoadZone(zoneName, false, true)
+		z2 := redis.LoadZone(zoneName, false)
 		location = redis.FindLocation(name, z2)
 		if location == "" {
 			return nil
@@ -328,7 +330,9 @@ func (redis *Redis) fillExtras(name string, z *record.Zone, location string) []d
 		answers     []dns.RR
 	)
 
-	zoneRecords = redis.LoadZoneRecords(location, z, true)
+	zoneRecords = redis.LoadZoneRecords(location, z)
+   	zoneRecords.MakeFqdn(z.Name)
+
 	if zoneRecords == nil {
 		return nil
 	}
@@ -471,7 +475,7 @@ func (redis *Redis) SaveZones(zones []record.Zone) (int, error) {
 	return ok, nil
 }
 
-func (redis *Redis) LoadZone(zone string, withRecord, recordsRaw bool) *record.Zone {
+func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	var (
 		reply interface{}
 		err   error
@@ -496,7 +500,7 @@ func (redis *Redis) LoadZone(zone string, withRecord, recordsRaw bool) *record.Z
 	z.Locations = make(map[string]record.Records)
 	for _, val := range vals {
 		if withRecord {
-			z.Locations[val] = *redis.LoadZoneRecords(val, z, recordsRaw)
+			z.Locations[val] = *redis.LoadZoneRecords(val, z)
 		} else {
 			z.Locations[val] = record.Records{} //struct{}{}
 		}
@@ -505,7 +509,7 @@ func (redis *Redis) LoadZone(zone string, withRecord, recordsRaw bool) *record.Z
 	return z
 }
 
-func (redis *Redis) LoadZoneRecords(key string, z *record.Zone, raw bool) *record.Records {
+func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records {
 	var (
 		err   error
 		reply interface{}
@@ -536,15 +540,10 @@ func (redis *Redis) LoadZoneRecords(key string, z *record.Zone, raw bool) *recor
 		return nil
 	}
 
-	if raw {
-		return r
-	}
-
-	r.MakeFqdn(z.Name)
 	return r
 }
 
-func (redis *Redis) LoadZones(name string) ([]string, error, bool) {
+func (redis *Redis) LoadZoneNames(name string) ([]string, error, bool) {
 	var (
 		reply interface{}
 		err   error
