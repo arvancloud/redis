@@ -74,7 +74,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	answers := make([]dns.RR, 0, 0)
 	extras := make([]dns.RR, 0, 10)
-	zoneRecords := p.Redis.LoadZoneRecords(location, zone, true)
+	zoneRecords := p.Redis.LoadZoneRecords(location, zone, false)
 
 	switch qType {
 	case dns.TypeSOA:
