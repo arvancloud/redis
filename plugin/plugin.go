@@ -6,6 +6,7 @@ import (
 	"github.com/coredns/coredns/plugin"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/coredns/coredns/request"
+	redisCon "github.com/gomodule/redigo/redis"
 	"github.com/miekg/dns"
 	redis "github.com/rverst/coredns-redis"
 	"github.com/rverst/coredns-redis/record"
@@ -41,7 +42,10 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
-	zones, err, connOk := p.Redis.LoadZoneNames(qName)
+	conn := p.Redis.Pool.Get()
+	defer conn.Close()
+
+	zones, err, connOk := p.Redis.LoadZoneNamesC(qName, conn)
 	if err != nil {
 		log.Error(err)
 		if !connOk {
@@ -55,7 +59,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
-	zone := p.Redis.LoadZone(zoneName, false)
+	zone := p.Redis.LoadZoneC(zoneName, false, conn)
 	if zone == nil {
 		log.Warningf("unable to load zone: %s", zoneName)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
@@ -63,7 +67,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	if qType == dns.TypeAXFR {
 		log.Debug("zone transfer request (Handler)")
-		return p.handleZoneTransfer(zone, zones, w, r)
+		return p.handleZoneTransfer(zone, zones, w, r, conn)
 	}
 
 	location := p.Redis.FindLocation(qName, zone)
@@ -74,7 +78,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	answers := make([]dns.RR, 0, 0)
 	extras := make([]dns.RR, 0, 10)
-	zoneRecords := p.Redis.LoadZoneRecords(location, zone)
+	zoneRecords := p.Redis.LoadZoneRecordsC(location, zone, conn)
 	zoneRecords.MakeFqdn(zone.Name)
 
 	switch qType {
@@ -89,13 +93,16 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	case dns.TypeTXT:
 		answers, extras = p.Redis.TXT(qName, zone, zoneRecords)
 	case dns.TypeNS:
-		answers, extras = p.Redis.NS(qName, zone, zoneRecords, zones)
+		answers, extras = p.Redis.NS(qName, zone, zoneRecords, zones, conn)
 	case dns.TypeMX:
-		answers, extras = p.Redis.MX(qName, zone, zoneRecords, zones)
+		answers, extras = p.Redis.MX(qName, zone, zoneRecords, zones, conn)
 	case dns.TypeSRV:
-		answers, extras = p.Redis.SRV(qName, zone, zoneRecords, zones)
+		answers, extras = p.Redis.SRV(qName, zone, zoneRecords, zones, conn)
+	case dns.TypePTR:
+		answers, extras = p.Redis.PTR(qName, zone, zoneRecords, zones, conn)
 	case dns.TypeCAA:
 		answers, extras = p.Redis.CAA(qName, zone, zoneRecords)
+
 	default:
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNotImplemented, nil)
 	}
@@ -111,9 +118,9 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	return dns.RcodeSuccess, nil
 }
 
-func (p *Plugin) handleZoneTransfer(zone *record.Zone, zones []string, w dns.ResponseWriter, r *dns.Msg) (int, error) {
+func (p *Plugin) handleZoneTransfer(zone *record.Zone, zones []string, w dns.ResponseWriter, r *dns.Msg, conn redisCon.Conn) (int, error) {
 	//todo: check and test zone transfer, implement ip-range check
-	records := p.Redis.AXFR(zone, zones)
+	records := p.Redis.AXFR(zone, zones, conn)
 	ch := make(chan *dns.Envelope)
 	tr := new(dns.Transfer)
 	tr.TsigSecret = nil

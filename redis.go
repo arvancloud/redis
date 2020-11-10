@@ -28,8 +28,6 @@ type Redis struct {
 	keyPrefix      string
 	keySuffix      string
 	DefaultTtl     int
-	Zones          []string
-	LastZoneUpdate time.Time
 }
 
 func New() *Redis {
@@ -172,7 +170,7 @@ func (redis *Redis) TXT(name string, _ *record.Zone, record *record.Records) (an
 	return
 }
 
-func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
+func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
 	for _, ns := range record.NS {
 		if len(ns.Host) == 0 {
 			continue
@@ -182,12 +180,12 @@ func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zone
 			Class: dns.ClassINET, Ttl: redis.ttl(ns.Ttl)}
 		r.Ns = ns.Host
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(ns.Host, z, zones)...)
+		extras = append(extras, redis.getExtras(ns.Host, z, zones, conn)...)
 	}
 	return
 }
 
-func (redis *Redis) MX(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
+func (redis *Redis) MX(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
 	for _, mx := range record.MX {
 		if len(mx.Host) == 0 {
 			continue
@@ -198,12 +196,12 @@ func (redis *Redis) MX(name string, z *record.Zone, record *record.Records, zone
 		r.Mx = mx.Host
 		r.Preference = mx.Preference
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(mx.Host, z, zones)...)
+		extras = append(extras, redis.getExtras(mx.Host, z, zones, conn)...)
 	}
 	return
 }
 
-func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
+func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
 	for _, srv := range record.SRV {
 		if len(srv.Target) == 0 {
 			continue
@@ -216,12 +214,12 @@ func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records, zon
 		r.Port = srv.Port
 		r.Priority = srv.Priority
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(srv.Target, z, zones)...)
+		extras = append(extras, redis.getExtras(srv.Target, z, zones, conn)...)
 	}
 	return
 }
 
-func (redis *Redis) PTR(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
+func (redis *Redis) PTR(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
 	for _, ptr := range record.PTR {
 		if len(ptr.Name) == 0 {
 			continue
@@ -231,7 +229,7 @@ func (redis *Redis) PTR(name string, z *record.Zone, record *record.Records, zon
 			Class: dns.ClassINET, Ttl: redis.ttl(ptr.Ttl)}
 		r.Ptr = ptr.Name
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(ptr.Name, z, zones)...)
+		extras = append(extras, redis.getExtras(ptr.Name, z, zones, conn)...)
 	}
 	return
 }
@@ -254,7 +252,7 @@ func (redis *Redis) CAA(name string, _ *record.Zone, record *record.Records) (an
 	return
 }
 
-func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
+func (redis *Redis) AXFR(z *record.Zone, zones []string, conn redisCon.Conn) (records []dns.RR) {
 	//soa, _ := redis.SOA(z.Name, z, record)
 	soa := make([]dns.RR, 0)
 	answers := make([]dns.RR, 0, 10)
@@ -290,15 +288,15 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
-			as, xs = redis.MX(fqdnKey, z, zoneRecords, zones)
+			as, xs = redis.MX(fqdnKey, z, zoneRecords, zones, conn)
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
-			as, xs = redis.SRV(fqdnKey, z, zoneRecords, zones)
+			as, xs = redis.SRV(fqdnKey, z, zoneRecords, zones, conn)
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
-			as, xs = redis.PTR(fqdnKey, z, zoneRecords, zones)
+			as, xs = redis.PTR(fqdnKey, z, zoneRecords, zones, conn)
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
@@ -317,13 +315,12 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 	return
 }
 
-func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns.RR {
-
+func (redis *Redis) getExtras(name string, z *record.Zone, zones []string, conn redisCon.Conn) []dns.RR {
 	location := redis.FindLocation(name, z)
 	if location == "" {
 		zoneName := plugin.Zones(zones).Matches(name)
 		if zoneName == "" {
-			zones, err, _ := redis.LoadZoneNames(name)
+			zones, err, _ := redis.LoadZoneNamesC(name, conn)
 			if err != nil {
 				return nil
 			}
@@ -333,23 +330,23 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string) []dns
 			}
 		}
 
-		z2 := redis.LoadZone(zoneName, false)
+		z2 := redis.LoadZoneC(zoneName, false, conn)
 		location = redis.FindLocation(name, z2)
 		if location == "" {
 			return nil
 		}
-		return redis.fillExtras(name, z2, location)
+		return redis.fillExtras(name, z2, location, conn)
 	}
-	return redis.fillExtras(name, z, location)
+	return redis.fillExtras(name, z, location, conn)
 }
 
-func (redis *Redis) fillExtras(name string, z *record.Zone, location string) []dns.RR {
+func (redis *Redis) fillExtras(name string, z *record.Zone, location string, conn redisCon.Conn) []dns.RR {
 	var (
 		zoneRecords *record.Records
 		answers     []dns.RR
 	)
 
-	zoneRecords = redis.LoadZoneRecords(location, z)
+	zoneRecords = redis.LoadZoneRecordsC(location, z, conn)
 	zoneRecords.MakeFqdn(z.Name)
 
 	if zoneRecords == nil {
@@ -412,7 +409,7 @@ func (redis *Redis) FindLocation(query string, z *record.Zone) string {
 func (redis *Redis) Connect() error {
 	redis.Pool = &redisCon.Pool{
 		Dial: func() (redisCon.Conn, error) {
-			opts := []redisCon.DialOption{}
+			var opts []redisCon.DialOption
 			if redis.username != "" {
 				opts = append(opts, redisCon.DialUsername(redis.username))
 			}
@@ -495,12 +492,6 @@ func (redis *Redis) SaveZones(zones []record.Zone) (int, error) {
 }
 
 func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
-	var (
-		reply interface{}
-		err   error
-		vals  []string
-	)
-
 	conn := redis.Pool.Get()
 	if conn == nil {
 		fmt.Println("error connecting to redis")
@@ -508,20 +499,30 @@ func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	}
 	defer conn.Close()
 
+	return redis.LoadZoneC(zone, withRecord, conn)
+}
+
+func (redis *Redis) LoadZoneC(zone string, withRecord bool, conn redisCon.Conn) *record.Zone {
+	var (
+		reply  interface{}
+		err    error
+		values []string
+	)
+
 	reply, err = conn.Do("HKEYS", redis.Key(zone))
-	vals, err = redisCon.Strings(reply, err)
-	if err != nil || len(vals) == 0 {
+	values, err = redisCon.Strings(reply, err)
+	if err != nil || len(values) == 0 {
 		return nil
 	}
 
 	z := new(record.Zone)
 	z.Name = zone
 	z.Locations = make(map[string]record.Records)
-	for _, val := range vals {
+	for _, val := range values {
 		if withRecord {
-			z.Locations[val] = *redis.LoadZoneRecords(val, z)
+			z.Locations[val] = *redis.LoadZoneRecordsC(val, z, conn)
 		} else {
-			z.Locations[val] = record.Records{} //struct{}{}
+			z.Locations[val] = record.Records{}
 		}
 	}
 
@@ -529,13 +530,19 @@ func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 }
 
 func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records {
+
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	return redis.LoadZoneRecordsC(key, z, conn)
+}
+
+func (redis *Redis) LoadZoneRecordsC(key string, z *record.Zone, conn redisCon.Conn) *record.Records {
 	var (
 		err   error
 		reply interface{}
 		val   string
 	)
-	conn := redis.Pool.Get()
-	defer conn.Close()
 
 	var label string
 	if key == z.Name {
@@ -563,6 +570,13 @@ func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records 
 }
 
 func (redis *Redis) LoadZoneNames(name string) ([]string, error, bool) {
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	return redis.LoadZoneNamesC(name, conn)
+}
+
+func (redis *Redis) LoadZoneNamesC(name string, conn redisCon.Conn) ([]string, error, bool) {
 	var (
 		reply interface{}
 		err   error
@@ -573,9 +587,6 @@ func (redis *Redis) LoadZoneNames(name string) ([]string, error, bool) {
 	if query == "" {
 		query = name
 	}
-
-	conn := redis.Pool.Get()
-	defer conn.Close()
 
 	reply, err = conn.Do("KEYS", redis.keyPrefix+"*"+query+redis.keySuffix)
 	if err != nil {
