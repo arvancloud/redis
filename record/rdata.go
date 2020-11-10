@@ -312,6 +312,44 @@ func srvEqual(a, b []SRV) bool {
 	return true
 }
 
+type PTR struct {
+	Ttl  int    `json:"ttl"`
+	Name string `json:"name"`
+}
+
+// Equal determines if the record is equal
+func (a PTR) Equal(b PTR) bool {
+	return a.Ttl == b.Ttl && a.Name == b.Name
+}
+
+func (a PTR) TTL() (uint32, bool) {
+	if a.Ttl >= 0 {
+		return uint32(a.Ttl), true
+	}
+	return 0, false
+}
+
+func ptrEqual(a, b []PTR) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	c := 0
+	for _, ax := range a {
+		for _, bx := range b {
+			if ax.Name == bx.Name {
+				if !ax.Equal(bx) {
+					return false
+				}
+				c++
+			}
+		}
+	}
+	if len(a) != c {
+		return false
+	}
+	return true
+}
+
 type CAA struct {
 	Ttl   int    `json:"ttl"`
 	Flag  uint8  `json:"flag"`

@@ -221,6 +221,21 @@ func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records, zon
 	return
 }
 
+func (redis *Redis) PTR(name string, z *record.Zone, record *record.Records, zones []string) (answers, extras []dns.RR) {
+	for _, ptr := range record.PTR {
+		if len(ptr.Name) == 0 {
+			continue
+		}
+		r := new(dns.PTR)
+		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypePTR,
+			Class: dns.ClassINET, Ttl: redis.ttl(ptr.Ttl)}
+		r.Ptr = ptr.Name
+		answers = append(answers, r)
+		extras = append(extras, redis.getExtras(ptr.Name, z, zones)...)
+	}
+	return
+}
+
 func (redis *Redis) CAA(name string, _ *record.Zone, record *record.Records) (answers, extras []dns.RR) {
 	if record == nil {
 		return
@@ -283,6 +298,10 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string) (records []dns.RR) {
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
+			as, xs = redis.PTR(fqdnKey, z, zoneRecords, zones)
+			answers = append(answers, as...)
+			extras = append(extras, xs...)
+
 			as, xs = redis.TXT(fqdnKey, z, zoneRecords)
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
@@ -331,7 +350,7 @@ func (redis *Redis) fillExtras(name string, z *record.Zone, location string) []d
 	)
 
 	zoneRecords = redis.LoadZoneRecords(location, z)
-   	zoneRecords.MakeFqdn(z.Name)
+	zoneRecords.MakeFqdn(z.Name)
 
 	if zoneRecords == nil {
 		return nil

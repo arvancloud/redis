@@ -34,6 +34,7 @@ type Records struct {
 	NS    []NS    `json:"NS,omitempty"`
 	MX    []MX    `json:"MX,omitempty"`
 	SRV   []SRV   `json:"SRV,omitempty"`
+	PTR   []PTR   `json:"PTR,omitempty"`
 	CAA   []CAA   `json:"CAA,omitempty"`
 }
 
@@ -140,6 +141,10 @@ func (z Zone) Equal(zone Zone) bool {
 			return false
 		}
 
+		if !ptrEqual(rec.PTR, r2.PTR) {
+			return false
+		}
+
 		if !caaEqual(rec.CAA, r2.CAA) {
 			return false
 		}
@@ -174,6 +179,8 @@ func (z *Zone) Add(loc string, record Record) {
 		z.addNs(loc, record.(NS))
 	case SRV:
 		z.addSrv(loc, record.(SRV))
+	case PTR:
+		z.addPtr(loc, record.(PTR))
 	case CAA:
 		z.addCaa(loc, record.(CAA))
 	default:
@@ -260,6 +267,17 @@ func (z *Zone) addSrv(loc string, rec SRV) {
 		r.SRV[0] = rec
 	} else {
 		r.SRV = append(r.SRV, rec)
+	}
+	z.Locations[loc] = r
+}
+
+func (z Zone) addPtr(loc string, rec PTR) {
+	r := z.getOrAddLocation(loc)
+	if r.PTR == nil {
+		r.PTR = make([]PTR, 1)
+		r.PTR[0] = rec
+	} else {
+		r.PTR = append(r.PTR, rec)
 	}
 	z.Locations[loc] = r
 }
@@ -357,6 +375,11 @@ func (z Zone) String() (str string) {
 		for _, r := range z.Locations[k].SRV {
 			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SRV     %d %d %d %s\n",
 				spacedLoc(loc, maxL), r.Ttl, r.Priority, r.Weight, r.Port, r.Target))
+			checkError(i, err)
+		}
+		for _, r := range z.Locations[k].PTR {
+			i, err = sb.WriteString(fmt.Sprintf("%s%d     IN     SRV     %s\n",
+				spacedLoc(loc, maxL), r.Ttl, r.Name))
 			checkError(i, err)
 		}
 		for _, r := range z.Locations[k].CAA {
