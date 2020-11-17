@@ -23,9 +23,10 @@ func setup(c *caddy.Controller) error {
 	}
 
 	if ok, err := r.Ping(); err != nil {
+	if ok, err := r.Ping(); err != nil || !ok {
 		return plugin.Error("redis", err)
-	} else {
-		log.Infof("ping to redis ok: %t", ok)
+	} else if ok {
+		log.Infof("ping to redis ok")
 	}
 
 	p := &Plugin{
