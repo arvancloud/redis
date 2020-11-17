@@ -10,6 +10,8 @@ import (
 	"github.com/miekg/dns"
 	redis "github.com/rverst/coredns-redis"
 	"github.com/rverst/coredns-redis/record"
+	"sync"
+	"time"
 )
 
 const name = "redis"
@@ -19,6 +21,10 @@ var log = clog.NewWithPlugin("redis")
 type Plugin struct {
 	Redis *redis.Redis
 	Next  plugin.Handler
+
+	loadZoneTicker *time.Ticker
+	zones          []string
+	lock           sync.Mutex
 }
 
 func (p *Plugin) Name() string {
@@ -45,15 +51,15 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	conn := p.Redis.Pool.Get()
 	defer conn.Close()
 
-	zones, err, connOk := p.Redis.LoadZoneNamesC(qName, conn)
-	if err != nil {
-		log.Error(err)
-		if !connOk {
-			return dns.RcodeServerFailure, err
-		}
-		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
-	}
-	zoneName := plugin.Zones(zones).Matches(qName)
+	//zones, err, connOk := p.Redis.LoadZoneNamesC(qName, conn)
+	//if err != nil {
+	//	log.Error(err)
+	//	if !connOk {
+	//		return dns.RcodeServerFailure, err
+	//	}
+	//	return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
+	//}
+	zoneName := plugin.Zones(p.zones).Matches(qName)
 	if zoneName == "" {
 		log.Debugf("zone not found: %s", qName)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
@@ -61,13 +67,13 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	zone := p.Redis.LoadZoneC(zoneName, false, conn)
 	if zone == nil {
-		log.Warningf("unable to load zone: %s", zoneName)
+		log.Errorf("unable to load zone: %s", zoneName)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
 	}
 
 	if qType == dns.TypeAXFR {
 		log.Debug("zone transfer request (Handler)")
-		return p.handleZoneTransfer(zone, zones, w, r, conn)
+		return p.handleZoneTransfer(zone, p.zones, w, r, conn)
 	}
 
 	location := p.Redis.FindLocation(qName, zone)
@@ -93,13 +99,13 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	case dns.TypeTXT:
 		answers, extras = p.Redis.TXT(qName, zone, zoneRecords)
 	case dns.TypeNS:
-		answers, extras = p.Redis.NS(qName, zone, zoneRecords, zones, conn)
+		answers, extras = p.Redis.NS(qName, zone, zoneRecords, p.zones, conn)
 	case dns.TypeMX:
-		answers, extras = p.Redis.MX(qName, zone, zoneRecords, zones, conn)
+		answers, extras = p.Redis.MX(qName, zone, zoneRecords, p.zones, conn)
 	case dns.TypeSRV:
-		answers, extras = p.Redis.SRV(qName, zone, zoneRecords, zones, conn)
+		answers, extras = p.Redis.SRV(qName, zone, zoneRecords, p.zones, conn)
 	case dns.TypePTR:
-		answers, extras = p.Redis.PTR(qName, zone, zoneRecords, zones, conn)
+		answers, extras = p.Redis.PTR(qName, zone, zoneRecords, p.zones, conn)
 	case dns.TypeCAA:
 		answers, extras = p.Redis.CAA(qName, zone, zoneRecords)
 
@@ -147,4 +153,30 @@ func (p *Plugin) handleZoneTransfer(zone *record.Zone, zones []string, w dns.Res
 	}
 	w.Hijack()
 	return dns.RcodeSuccess, nil
+}
+
+func (p *Plugin) startZoneNameCache() {
+
+	z, err := p.Redis.LoadAllZoneNames()
+	if err != nil {
+		log.Fatal("unable to load zones to cache", err)
+	}
+	p.lock.Lock()
+	p.zones = z
+	p.lock.Unlock()
+	log.Info("zone name cache loaded")
+	go func() {
+		select {
+		case <- p.loadZoneTicker.C:
+			z, err := p.Redis.LoadAllZoneNames()
+			if err != nil {
+				log.Error("unable to load zones to cache", err)
+			}
+			p.lock.Lock()
+			p.zones = z
+			p.lock.Unlock()
+			log.Info("zone name cache refreshed")
+		}
+	}()
+
 }

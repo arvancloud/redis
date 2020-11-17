@@ -569,6 +569,22 @@ func (redis *Redis) LoadZoneRecordsC(key string, z *record.Zone, conn redisCon.C
 	return r
 }
 
+func (redis *Redis) LoadAllZoneNames() ([]string, error) {
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	reply, err := conn.Do("KEYS", redis.keyPrefix+"*"+redis.keySuffix)
+	zones, err := redisCon.Strings(reply, err)
+	if err != nil {
+		return nil, err
+	}
+	for i, _ := range zones {
+		zones[i] = strings.TrimPrefix(zones[i], redis.keyPrefix)
+		zones[i] = strings.TrimSuffix(zones[i], redis.keySuffix)
+	}
+	return zones, nil
+}
+
 func (redis *Redis) LoadZoneNames(name string) ([]string, error, bool) {
 	conn := redis.Pool.Get()
 	defer conn.Close()

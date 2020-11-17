@@ -7,6 +7,7 @@ import (
 	"github.com/coredns/coredns/plugin"
 	"github.com/rverst/coredns-redis"
 	"strconv"
+	"time"
 )
 
 func init() {
@@ -19,10 +20,9 @@ func init() {
 func setup(c *caddy.Controller) error {
 	r, err := redisParse(c)
 	if err != nil {
-
+		return err
 	}
 
-	if ok, err := r.Ping(); err != nil {
 	if ok, err := r.Ping(); err != nil || !ok {
 		return plugin.Error("redis", err)
 	} else if ok {
@@ -31,7 +31,9 @@ func setup(c *caddy.Controller) error {
 
 	p := &Plugin{
 		Redis: r,
+		loadZoneTicker: time.NewTicker(time.Duration(r.DefaultTtl) * time.Second),
 	}
+	p.startZoneNameCache()
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
 		p.Next = next
