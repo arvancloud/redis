@@ -10,6 +10,7 @@ import (
 	"github.com/miekg/dns"
 	redis "github.com/rverst/coredns-redis"
 	"github.com/rverst/coredns-redis/record"
+	"sort"
 	"sync"
 	"time"
 )
@@ -48,21 +49,28 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
-	conn := p.Redis.Pool.Get()
-	defer conn.Close()
+	var conn redisCon.Conn
+	defer func() {
+		if conn == nil {
+			return
+		}
+		_ = conn.Close()
+	}()
 
-	//zones, err, connOk := p.Redis.LoadZoneNamesC(qName, conn)
-	//if err != nil {
-	//	log.Error(err)
-	//	if !connOk {
-	//		return dns.RcodeServerFailure, err
-	//	}
-	//	return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
-	//}
-	zoneName := plugin.Zones(p.zones).Matches(qName)
+	var zoneName string
+	x := sort.SearchStrings(p.zones, qName)
+	if x >= 0 && p.zones[x] == qName {
+		zoneName = p.zones[x]
+	} else {
+		conn = p.Redis.Pool.Get()
+		zoneName = plugin.Zones(p.zones).Matches(qName)
+	}
+
 	if zoneName == "" {
 		log.Debugf("zone not found: %s", qName)
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
+	} else if conn == nil {
+		conn = p.Redis.Pool.Get()
 	}
 
 	zone := p.Redis.LoadZoneC(zoneName, false, conn)
@@ -161,6 +169,7 @@ func (p *Plugin) startZoneNameCache() {
 	if err != nil {
 		log.Fatal("unable to load zones to cache", err)
 	}
+	sort.Strings(z)
 	p.lock.Lock()
 	p.zones = z
 	p.lock.Unlock()
@@ -172,6 +181,7 @@ func (p *Plugin) startZoneNameCache() {
 			if err != nil {
 				log.Error("unable to load zones to cache", err)
 			}
+			sort.Strings(z)
 			p.lock.Lock()
 			p.zones = z
 			p.lock.Unlock()
