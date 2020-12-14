@@ -11,6 +11,11 @@ echo 'redis:github.com/threefoldtech/coredns-redis' >> plugin.cfg
 make
 chmod +x coredns
 ```
+## development
+
+- clone repo git@github.com:threefoldtech/coredns-redis.git under ~/go/src/coredns-redis
+- in coredns repo in plugins dir add `redis:coredns-redis`
+- in coredns repo make
 
 ## syntax
 
