@@ -3,9 +3,10 @@ package redis
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/miekg/dns"
 	"strings"
 	"time"
+
+	"github.com/miekg/dns"
 
 	"github.com/coredns/coredns/plugin"
 

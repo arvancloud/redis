@@ -13,7 +13,6 @@ import (
 // ServeDNS implements the plugin.Handler interface.
 func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
-
 	qname := state.Name()
 	qtype := state.Type()
 
@@ -61,7 +60,8 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 
 	location := redis.findLocation(qname, z)
 	if len(location) == 0 { // empty, no results
-		return redis.errorResponse(state, zone, dns.RcodeNameError, nil)
+		return plugin.NextOrFailure("forwarding to next", redis.Next, ctx, w, r)
+		// return redis.errorResponse(state, zone, dns.RcodeNameError, nil)
 	}
 
 	answers := make([]dns.RR, 0, 10)
@@ -86,6 +86,9 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		answers, extras = redis.AAAA(qname, z, record)
 	case "CNAME":
 		answers, extras = redis.CNAME(qname, z, record)
+		if len(answers) == 0 {
+			return plugin.NextOrFailure("forwarding to next", redis.Next, ctx, w, r)
+		}
 	case "TXT":
 		answers, extras = redis.TXT(qname, z, record)
 	case "NS":
@@ -100,9 +103,8 @@ func (redis *Redis) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.M
 		answers, extras = redis.CAA(qname, z, record)
 
 	default:
-		return redis.errorResponse(state, zone, dns.RcodeNotImplemented, nil)
+		return plugin.NextOrFailure("forwarding to next", redis.Next, ctx, w, r)
 	}
-
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
