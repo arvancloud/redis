@@ -25,6 +25,7 @@ type Plugin struct {
 
 	loadZoneTicker *time.Ticker
 	zones          []string
+	lastRefresh    time.Time
 	lock           sync.Mutex
 }
 
@@ -68,6 +69,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	if zoneName == "" {
 		log.Debugf("zone not found: %s", qName)
+		p.checkCache();
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	} else if conn == nil {
 		conn = p.Redis.Pool.Get()
@@ -87,6 +89,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	location := p.Redis.FindLocation(qName, zone)
 	if location == "" {
 		log.Debugf("location %s not found for zone: %s", qName, zone)
+		p.checkCache()
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
 	}
 
@@ -165,28 +168,41 @@ func (p *Plugin) handleZoneTransfer(zone *record.Zone, zones []string, w dns.Res
 
 func (p *Plugin) startZoneNameCache() {
 
+	if err := p.loadCache(); err != nil {
+		log.Fatal("unable to load zones to cache", err)
+	} else {
+		log.Info("zone name cache loaded")
+	}
+	go func() {
+		for {
+			select {
+			case <-p.loadZoneTicker.C:
+				if err := p.loadCache(); err != nil {
+					log.Error("unable to load zones to cache", err)
+					return
+				} else {
+					log.Infof("zone name cache refreshed (%v)", time.Now())
+				}
+			}
+		}
+	}()
+}
+
+func (p *Plugin) loadCache() error {
 	z, err := p.Redis.LoadAllZoneNames()
 	if err != nil {
-		log.Fatal("unable to load zones to cache", err)
+		return err
 	}
 	sort.Strings(z)
 	p.lock.Lock()
 	p.zones = z
+	p.lastRefresh = time.Now()
 	p.lock.Unlock()
-	log.Info("zone name cache loaded")
-	go func() {
-		select {
-		case <- p.loadZoneTicker.C:
-			z, err := p.Redis.LoadAllZoneNames()
-			if err != nil {
-				log.Error("unable to load zones to cache", err)
-			}
-			sort.Strings(z)
-			p.lock.Lock()
-			p.zones = z
-			p.lock.Unlock()
-			log.Info("zone name cache refreshed")
-		}
-	}()
+	return nil
+}
 
+func (p *Plugin) checkCache() {
+	if time.Now().Sub(p.lastRefresh).Seconds() > float64(p.Redis.DefaultTtl * 2) {
+		p.startZoneNameCache()
+	}
 }
