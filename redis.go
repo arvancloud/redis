@@ -34,39 +34,48 @@ func New() *Redis {
 	return &Redis{}
 }
 
+// SetAddress sets the address (host:port) to the redis backend
 func (redis *Redis) SetAddress(a string) {
 	redis.address = a
 }
 
+// SetUsername sets the username for the redis connection (optional)
 func (redis Redis) SetUsername(u string) {
 	redis.username = u
 }
+
+// SetPassword set the password for the redis connection (optional)
 func (redis *Redis) SetPassword(p string) {
 	redis.password = p
 }
 
+// SetKeyPrefix sets a prefix for all redis-keys (optional)
 func (redis *Redis) SetKeyPrefix(p string) {
 	redis.keyPrefix = p
 }
 
+// SetKeySuffix sets a suffix for all redis-keys (optional)
 func (redis *Redis) SetKeySuffix(s string) {
 	redis.keySuffix = s
 }
 
+// SetConnectTimeout sets a timeout in ms for the connection setup (optional)
 func (redis *Redis) SetConnectTimeout(t int) {
 	redis.connectTimeout = t
 }
 
+// SetReadTimeout sets a timeout in ms for redis read operations (optional)
 func (redis *Redis) SetReadTimeout(t int) {
 	redis.readTimeout = t
 }
 
+// SetDefaultTtl sets a default TTL for records in the redis backend (default 3600)
 func (redis *Redis) SetDefaultTtl(t int) {
 	redis.DefaultTtl = t
 }
 
-// Ping sends a "PING" command to the redis server
-// and returns (true, nil) if the server response
+// Ping sends a "PING" command to the redis backend
+// and returns (true, nil) if redis response
 // is 'PONG'. Otherwise Ping return false and
 // an error
 func (redis *Redis) Ping() (bool, error) {
@@ -406,6 +415,8 @@ func (redis *Redis) FindLocation(query string, z *record.Zone) string {
 	return ""
 }
 
+// Connect establishes a connection to the redis-backend. The configuration must have
+// been done before.
 func (redis *Redis) Connect() error {
 	redis.Pool = &redisCon.Pool{
 		Dial: func() (redisCon.Conn, error) {
@@ -444,6 +455,7 @@ func (redis *Redis) Connect() error {
 	return nil
 }
 
+// DeleteZone deletes a zone-record from the backend.
 func (redis *Redis) DeleteZone(zoneName string) (bool, error) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
@@ -453,6 +465,7 @@ func (redis *Redis) DeleteZone(zoneName string) (bool, error) {
 	return i == 1, err
 }
 
+// SaveZone saves a zone-record to the backend.
 func (redis *Redis) SaveZone(zone record.Zone) error {
 	conn := redis.Pool.Get()
 	defer conn.Close()
@@ -470,6 +483,7 @@ func (redis *Redis) SaveZone(zone record.Zone) error {
 	return nil
 }
 
+// SaveZones saves a set of zone-records to the backend.
 func (redis *Redis) SaveZones(zones []record.Zone) (int, error) {
 	ok := 0
 	conn := redis.Pool.Get()
@@ -491,6 +505,7 @@ func (redis *Redis) SaveZones(zones []record.Zone) (int, error) {
 	return ok, nil
 }
 
+// LoadZone calls LoadZoneC with a new redis connection
 func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	conn := redis.Pool.Get()
 	if conn == nil {
@@ -502,6 +517,8 @@ func (redis *Redis) LoadZone(zone string, withRecord bool) *record.Zone {
 	return redis.LoadZoneC(zone, withRecord, conn)
 }
 
+// LoadZoneC loads a zone from the backend. The loading of the records is optional, if omitted
+// the result contains only the locations in the zone.
 func (redis *Redis) LoadZoneC(zone string, withRecord bool, conn redisCon.Conn) *record.Zone {
 	var (
 		reply  interface{}
@@ -529,6 +546,7 @@ func (redis *Redis) LoadZoneC(zone string, withRecord bool, conn redisCon.Conn) 
 	return z
 }
 
+// LoadZoneRecords calls LoadZoneRecordsC with a new redis connection
 func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records {
 
 	conn := redis.Pool.Get()
@@ -537,6 +555,7 @@ func (redis *Redis) LoadZoneRecords(key string, z *record.Zone) *record.Records 
 	return redis.LoadZoneRecordsC(key, z, conn)
 }
 
+// LoadZoneRecordsC loads a zone record from the backend for a given zone
 func (redis *Redis) LoadZoneRecordsC(key string, z *record.Zone, conn redisCon.Conn) *record.Records {
 	var (
 		err   error
@@ -569,6 +588,7 @@ func (redis *Redis) LoadZoneRecordsC(key string, z *record.Zone, conn redisCon.C
 	return r
 }
 
+// LoadAllZoneNames returns all zone names saved in the backend
 func (redis *Redis) LoadAllZoneNames() ([]string, error) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
@@ -585,6 +605,7 @@ func (redis *Redis) LoadAllZoneNames() ([]string, error) {
 	return zones, nil
 }
 
+// LoadZoneNames calls LoadZoneNamesC with a new redis connection
 func (redis *Redis) LoadZoneNames(name string) ([]string, error, bool) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
@@ -592,6 +613,10 @@ func (redis *Redis) LoadZoneNames(name string) ([]string, error, bool) {
 	return redis.LoadZoneNamesC(name, conn)
 }
 
+// LoadZoneNamesC loads all zone names from the backend that are a subset from the given name.
+// Therefore the name is reduced to domain and toplevel domain if necessary.
+// It returns an array of zone names, an error if any and a bool that indicates if the redis
+// command was executed properly
 func (redis *Redis) LoadZoneNamesC(name string, conn redisCon.Conn) ([]string, error, bool) {
 	var (
 		reply interface{}
