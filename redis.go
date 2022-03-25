@@ -17,12 +17,14 @@ type Redis struct {
 	Pool           *redisCon.Pool
 	redisAddress   string
 	redisPassword  string
+	db		       int
 	connectTimeout int
 	readTimeout    int
 	keyPrefix      string
 	keySuffix      string
 	Ttl            uint32
 	Zones          []string
+
 	LastZoneUpdate time.Time
 }
 
@@ -416,7 +418,7 @@ func (redis *Redis) Connect() {
 			if redis.readTimeout != 0 {
 				opts = append(opts, redisCon.DialReadTimeout(time.Duration(redis.readTimeout)*time.Millisecond))
 			}
-
+			opts = append(opts, redisCon.DialDatabase(redis.db))
 			return redisCon.Dial("tcp", redis.redisAddress, opts...)
 		},
 	}

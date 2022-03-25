@@ -1,9 +1,9 @@
 package redis
 
 import (
-	"testing"
 	"fmt"
 	"math/rand"
+	"testing"
 
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/test"

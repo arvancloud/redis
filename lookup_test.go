@@ -198,19 +198,12 @@ func newRedisPlugin() *Redis {
 	redis.keyPrefix = ""
 	redis.keySuffix = ""
 	redis.Ttl = 300
-	redis.redisAddress = "localhost:6379"
+	redis.redisAddress = "127.0.0.1:6379"
 	redis.redisPassword = ""
+	redis.db = 0
 	redis.Connect()
 	redis.LoadZones()
 	return redis
-	/*
-	return &Redis {
-		keyPrefix: "",
-		keySuffix:"",
-		redisc: client,
-		Ttl: 300,
-	}	redis := new(Redis)
-	*/
 }
 
 func TestAnswer(t *testing.T) {
@@ -240,7 +233,7 @@ func TestAnswer(t *testing.T) {
 			if resp == nil {
 				resp = new(dns.Msg)
 			}
-			test.SortAndCheck(t, resp, tc)
+			test.SortAndCheck(resp, tc)
 		}
 	}
 }
